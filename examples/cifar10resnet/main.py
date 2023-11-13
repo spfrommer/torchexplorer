@@ -10,7 +10,6 @@ from torch import nn
 import torchvision
 import lightning as L
 from pytorch_lightning.loggers import WandbLogger
-from sklearn import datasets
 
 from torchexplorer import watch, LIGHTNING_EPOCHS
 

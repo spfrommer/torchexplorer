@@ -4,6 +4,7 @@ pretrain/
 .vscode/
 *.swp
 notes.txt
+setup.sh
 
 torchexplorer_standalone/
 

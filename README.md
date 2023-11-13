@@ -4,7 +4,7 @@
 
 <div align="center">
 
-  <a href="">![example1](https://img.shields.io/badge/version-0.1.0-orange)</a>
+  <a href="">![example1](https://img.shields.io/badge/version-0.2.0-orange)</a>
 
 </div>
 
