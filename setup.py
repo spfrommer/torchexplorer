@@ -15,24 +15,16 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'click',
-        'colorama',
-        'plotly',
-        'tqdm',
-        'pytest',
-        'pygraphviz',
-        'pyperclip',
-
         'torch',
+        'pygraphviz',
+        'wandb',
+        'flask',
+        'numpy',
+
         'torchvision',
         'lightning',
-
-        'jaxtyping',
-        'beartype',
-        'einops',
-        'wandb',
-
-        'numpy',
         'scikit-learn',
-        'flask'
+        'click',
+        'pytest',
+        'pyperclip',
     ])

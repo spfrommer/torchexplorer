@@ -13,7 +13,7 @@ from torchexplorer.histogram import HistogramParams, IncrementalHistogram
 
 def hook(
         module: nn.Module,
-        should_log_callback: Callable,
+        should_log_callable: Callable,
         log_io=True,
         log_io_grad=True,
         ignore_io_grad_classes: list[type] = [],
@@ -29,13 +29,13 @@ def hook(
 
     module.register_forward_pre_hook(pre_hook)
 
-    _add_tracking_hooks(module, should_log_callback)
+    _add_tracking_hooks(module, should_log_callable)
 
     if log_io:
-        _add_io_histogram_hooks(module, hist_params, should_log_callback)
+        _add_io_histogram_hooks(module, hist_params, should_log_callable)
     if log_io_grad:
         _add_io_grad_histogram_hooks(
-            module, hist_params, should_log_callback, ignore_io_grad_classes
+            module, hist_params, should_log_callable, ignore_io_grad_classes
         )
 
 
@@ -96,7 +96,7 @@ def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
     return tuple(process_tensor(tensor) for tensor in tensors)
 
 
-def _add_tracking_hooks(module: nn.Module, should_log_callback: Callable):
+def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
     def gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
         def process_tensor(tensor: OTensor):
             if tensor is None or not tensor.requires_grad:
@@ -106,7 +106,7 @@ def _add_tracking_hooks(module: nn.Module, should_log_callback: Callable):
         return tuple(process_tensor(tensor) for tensor in tensors)
 
     def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
-        if not module.training or not should_log_callback():
+        if not should_log_callable():
             return
 
         metadata: ExplorerMetadata = module.torchexplorer_metadata
@@ -121,7 +121,7 @@ def _add_tracking_hooks(module: nn.Module, should_log_callback: Callable):
             outputs: Union[OTensor, tuple[OTensor, ...]]
         ):
 
-        if not module.training or not should_log_callback():
+        if not should_log_callable():
             return
 
         outputs_tuple, single_output = _ensure_tuple(outputs)
@@ -166,7 +166,7 @@ def _clear_temporary_metadata(module: nn.Module):
     module.torchexplorer_metadata.backward_invocation_counter = 0
 
 def _add_io_histogram_hooks(
-        module: nn.Module, hist_params: HistogramParams, should_log_callback: Callable
+        module: nn.Module, hist_params: HistogramParams, should_log_callable: Callable
     ):
 
     def post_hook(
@@ -175,7 +175,7 @@ def _add_io_histogram_hooks(
             outputs: Union[OTensor, tuple[OTensor]]
         ):
 
-        if not module.training or not should_log_callback():
+        if not should_log_callable():
             return
 
         outputs_tuple, _ = _ensure_tuple(outputs)
@@ -202,7 +202,7 @@ def _add_io_histogram_hooks(
 def _add_io_grad_histogram_hooks(
         module: nn.Module,
         hist_params: HistogramParams,
-        should_log_callback: Callable,
+        should_log_callable: Callable,
         ignore_classes: list[type]
     ):
 
@@ -212,7 +212,7 @@ def _add_io_grad_histogram_hooks(
             grads_output: Union[OTensor, tuple[OTensor, ...]]
         ) -> None:
 
-        if not module.training or not should_log_callback():
+        if not should_log_callable():
             return
 
         grads_input_tuple, _ = _ensure_tuple(grads_input)
@@ -249,7 +249,7 @@ def _add_io_grad_histogram_hooks(
 
         for child in module.children():
             _add_io_grad_histogram_hooks(
-                child, hist_params, should_log_callback, ignore_classes
+                child, hist_params, should_log_callable, ignore_classes
             )
 
 def _ensure_tuple(

@@ -75,7 +75,7 @@ def watch(
 
     hist_params = HistogramParams(bins, sample_n, reject_outlier_proportion, time_name)
     step_counter = 0
-    should_log_callback = lambda: step_counter % log_freq == 0
+    should_log_callable = lambda: (step_counter % log_freq == 0) and module.training
     wrapper = StructureWrapper()
 
     if backend == 'standalone':
@@ -83,7 +83,7 @@ def watch(
 
     hook.hook(
         module,
-        should_log_callback,
+        should_log_callable,
         log_io='io' in log,
         log_io_grad='io_grad' in log,
         ignore_io_grad_classes=ignore_io_grad_classes,
@@ -107,7 +107,7 @@ def watch(
         nonlocal step_counter, wrapper
         step_counter += 1
 
-        if should_log_callback():
+        if should_log_callable():
             time = time_fn(module, step_counter)
             hook.push_histogram_histories(
                 module,
