@@ -1,22 +1,30 @@
 from setuptools import setup, find_namespace_packages
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
     name='torchexplorer',
-    packages=find_namespace_packages(include=['torchexplorer.*', 'lib.*']),
-    version='0.1',
+    version='0.0.1',
+    description="Interactively inspect pytorch modules during training.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/spfrommer/torchexplorer",
+    author="Samuel Pfrommer",
+    author_email="sam.pfrommer@gmail.com",
+    packages=find_namespace_packages(include=['torchexplorer.*']),
     install_requires=[
         'click',
-        'colored_traceback',
         'colorama',
         'plotly',
         'tqdm',
-        'dacite',
         'pytest',
         'pygraphviz',
         'pyperclip',
 
         'torch',
         'torchvision',
+        'lightning',
 
         'jaxtyping',
         'beartype',
