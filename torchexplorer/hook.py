@@ -64,7 +64,7 @@ def push_histogram_histories(
                 shared_hists.param_grad_hists[name] = IncrementalHistogram(hist_params)
 
             hist = shared_hists.param_grad_hists[name]
-            hist.update(param.grad.norm(2).detach())
+            hist.update(param.grad.detach())
 
 
     def get_hists(h: ModuleInvocationHistograms) -> list[IncrementalHistogram]:
@@ -193,7 +193,7 @@ def _add_io_histogram_hooks(
                 if len(hists) <= i:
                     hists.append(IncrementalHistogram(hist_params))
                 if tensor is not None:
-                    hists[i].update(tensor)
+                    hists[i].update(tensor.detach())
 
     def hook_module(m: nn.Module):
         m.register_forward_hook(post_hook)
@@ -242,7 +242,7 @@ def _add_io_grad_histogram_hooks(
                         tensor = tensor.reshape(1, 1)
                     tensor = tensor.reshape(tensor.shape[0], -1)
                     norms = torch.norm(tensor.float(), dim=1)
-                    hists[i].update(norms)
+                    hists[i].update(norms.detach())
 
     if type(module) not in ignore_classes:
         module.register_full_backward_hook(backward_hook)

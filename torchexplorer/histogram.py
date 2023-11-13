@@ -35,7 +35,8 @@ class IncrementalHistogram:
         bounds of the histogram, the histogram automatically rebins."""
 
         tensor = tensor.flatten()
-        tensor = tensor[torch.randint(tensor.shape[0], (self.params.sample_n,))].float()
+        sample_n = min(self.params.sample_n, tensor.shape[0])
+        tensor = tensor[torch.randint(tensor.shape[0], (sample_n,))].float()
 
         if self.params.reject_outlier_proportion > 0:
             center = tensor.median()
