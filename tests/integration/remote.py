@@ -7,7 +7,7 @@ import torchvision
 import torch
 from torch import nn
 
-from torchexplorer.api import watch
+from torchexplorer import watch
 
 import infra
 

@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import torch
 from torch import nn
 
-from torchexplorer.api import StructureWrapper, watch
+from torchexplorer import StructureWrapper, watch
 from torchexplorer.core import (
     ModuleInvocationHistograms, ModuleInvocationStructure
 )

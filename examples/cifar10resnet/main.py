@@ -12,7 +12,7 @@ import lightning as L
 from pytorch_lightning.loggers import WandbLogger
 from sklearn import datasets
 
-from torchexplorer.api import watch, LIGHTNING_EPOCHS
+from torchexplorer import watch, LIGHTNING_EPOCHS
 
 from data.cifar10_datamodule import CIFAR10DataModule
 from data.metadata import get_normalize_layer

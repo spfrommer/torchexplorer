@@ -1,0 +1,5 @@
+include torchexplorer/*.py
+include torchexplorer/vega/vega_dataless.json
+include torchexplorer/standalone/README.md
+include torchexplorer/standalone/data/.keep
+include torchexplorer/standalone/templates/index.html

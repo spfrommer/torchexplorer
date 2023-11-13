@@ -10,7 +10,7 @@ from sklearn import datasets
 
 import click
 
-from torchexplorer.api import watch, LIGHTNING_EPOCHS
+from torchexplorer import watch, LIGHTNING_EPOCHS
 
 
 wandb_init_params = {
