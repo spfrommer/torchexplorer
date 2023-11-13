@@ -41,6 +41,13 @@ If you want to run the visualization as a standalone app for local training (as 
 pip install flask
 ```
 
+### Using the UI
+**Explorer.** The left-hand panel contains a module-level graph of your network architecture, automatically extracted from the autograd graph. Clicking on a module will open its "internal" submodules. To return to a parent module, click on the appropriate element in the top-left expanding list.
+
+**Panels.** To inspect a module in more detail, just drag and drop it into one of the columns on the right. The histogram colors don't represent anything intrinsically—they're just to help identify in the explorer which modules are being visualized.
+
+**Histograms.** Each vertical "slice" of a histogram encodes the distribution of values at the corresponding x-axis time. The y-axis displays the minimum / maximum bounds of the histogram. Completely white squares mean that no data fell in that bin. A bin with one entry will be shaded light gray, with the color intensifying as more values fall in that bin (this encodes the "height" of the histogram). The dashed horizontal line is the $y=0$ line. 
+
 ## API
 
 The api surface is just one function call, inspired by wandb's [watch](https://docs.wandb.ai/ref/python/watch).
@@ -94,6 +101,7 @@ Args:
 
 ## Do's, don'ts, and other notes
 
+
 1. When invoking a module, **don't use the `module.forward(x)` method**. Always call the forwards method as `module(x)`. The former does not call the hooks that `torchexplorer` uses.
 2. Only call `.backward()` once in a training step.
 3. **Recursive operations are not supported,** and **anything which dynamically changes the module-level control flow over training is not supported**. For instance, something like this isn't permissible:
@@ -103,9 +111,23 @@ if x > 0:
 else:
     return self.module2(x)
 ```
-4. **Inplace operations are not supported** and should be corrected or filtered (see "Common errors" below).
-5. Keyword tensor arguments to the forwards method are not supported. In other words, only positional arguments will be tracked. Behavior for keyword tensor arguments is untested as of now.
-6. Nondifferentiable operations which break the autograd graph are permissible and should not cause a crash. However, the resulting module-level graph will be correspondingly disconnected.
+4. However, performing multiple invocations of the same module is supported. Inputs/outputs will be displayed separately for each invocation, but the parameters and parameter gradients will of course be shared. So something like this should work:
+```python
+class TestModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc = nn.Linear(20, 20)
+        self.activation = nn.ReLU()
+
+    def forward(self, x):
+        x = self.activation(x)
+        x = self.fc(x)
+        x = self.activation(x)
+        return x  
+```
+5. **Inplace operations are not supported** and should be corrected or filtered (see "Common errors" below).
+6. Keyword tensor arguments to the forwards method are not supported. In other words, only positional arguments will be tracked. Behavior for keyword tensor arguments is untested as of now.
+7. Nondifferentiable operations which break the autograd graph are permissible and should not cause a crash. However, the resulting module-level graph will be correspondingly disconnected.
 
 ## Common errors
 
