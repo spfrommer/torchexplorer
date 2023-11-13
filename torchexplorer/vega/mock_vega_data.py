@@ -7,7 +7,6 @@ from torch import nn
 import pyperclip
 
 from torchexplorer import layout, api
-from torchexplorer.vega.compact_json import CompactJSONEncoder
 
 
 class NonDiffSubModule(nn.Module):

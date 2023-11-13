@@ -1,19 +1,19 @@
 import torch
 from torch import nn
 from torch import Tensor
-from torch.utils.hooks import RemovableHandle
 
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from torchexplorer.core import (
-    ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms, OTensor
+    ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms,
+    OTensor, GradFn
 )
 from torchexplorer.histogram import HistogramParams, IncrementalHistogram
 
 
 def hook(
         module: nn.Module,
-        should_log_callback: callable,
+        should_log_callback: Callable,
         log_io=True,
         log_io_grad=True,
         ignore_io_grad_classes: list[type] = [],
@@ -22,7 +22,7 @@ def hook(
 
     module.apply(_add_metadata)
 
-    def pre_hook(module: nn.Module, inputs: tuple[OTensor]):
+    def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
         module.apply(_clear_temporary_metadata)
         # Make sure we are tracking gradients back to inputs
         return _add_dummy(inputs)
@@ -87,17 +87,17 @@ def push_histogram_histories(
     for child in module.children():
         push_histogram_histories(child, hist_params, time, log_params, log_params_grad)
 
-def _add_dummy(tensors: tuple[OTensor]) -> tuple[OTensor]:
+def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
     dummy_tensor = torch.tensor(0.0, requires_grad=True)
     def process_tensor(tensor: OTensor) -> OTensor:
         if tensor is None:
             return None
         return tensor + dummy_tensor if torch.is_floating_point(tensor) else tensor
-    return tuple([process_tensor(tensor) for tensor in tensors])
+    return tuple(process_tensor(tensor) for tensor in tensors)
 
 
-def _add_tracking_hooks(module: nn.Module, should_log_callback: callable):
-    def gradfns(tensors: tuple[OTensor]):
+def _add_tracking_hooks(module: nn.Module, should_log_callback: Callable):
+    def gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
         def process_tensor(tensor: OTensor):
             if tensor is None or not tensor.requires_grad:
                 return None
@@ -105,7 +105,7 @@ def _add_tracking_hooks(module: nn.Module, should_log_callback: callable):
 
         return tuple(process_tensor(tensor) for tensor in tensors)
 
-    def pre_hook(module: nn.Module, inputs: tuple[OTensor]):
+    def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
         if not module.training or not should_log_callback():
             return
 
@@ -117,39 +117,36 @@ def _add_tracking_hooks(module: nn.Module, should_log_callback: callable):
 
     def post_hook(
             module: nn.Module,
-            inputs: tuple[OTensor],
-            outputs: Union[OTensor, tuple[OTensor]]
+            inputs: tuple[OTensor, ...],
+            outputs: Union[OTensor, tuple[OTensor, ...]]
         ):
+
         if not module.training or not should_log_callback():
             return
 
-        single_output = outputs is None or isinstance(outputs, Tensor)
-        if single_output:
-            outputs = (outputs,)
+        outputs_tuple, single_output = _ensure_tuple(outputs)
 
         metadata: ExplorerMetadata = module.torchexplorer_metadata
         invocation_id = metadata.forward_invocation_counter - 1
         assert invocation_id >= 0
-        metadata.output_gradfns[invocation_id] = gradfns(outputs)
+        metadata.output_gradfns[invocation_id] = gradfns(outputs_tuple)
 
-        # for grad_fn in metadata.output_gradfns[invocation_id]:
-        #     if grad_fn is None:
-        #         continue
-        #     test = grad_fn.next_functions
-        #     if not ('next_functions' in dir(grad_fn)):
-        #         breakpoint()
+        outputs_tuple = _add_dummy(outputs_tuple)
 
-        outputs = _add_dummy(outputs)
-
-        for tensors, index_name in [(inputs, 'input_index'), (outputs, 'output_index')]:
+        for tensors, index_name in [
+            (inputs, 'input_index'), (outputs_tuple, 'output_index')
+        ]:
             for i, tensor in enumerate(tensors):
                 if tensor is None or tensor.grad_fn is None:
                     continue
+
+                assert isinstance(tensor.grad_fn.metadata, dict)
+
                 tensor.grad_fn.metadata['module'] = module
                 tensor.grad_fn.metadata[index_name] = i
                 tensor.grad_fn.metadata['invocation_id'] = invocation_id
 
-        return outputs[0] if single_output else outputs
+        return outputs_tuple[0] if single_output else outputs_tuple
 
     def add_hooks(module):
         if not module.torchexplorer_metadata.has_tracking_hooks:
@@ -160,7 +157,7 @@ def _add_tracking_hooks(module: nn.Module, should_log_callback: callable):
     module.apply(add_hooks)
 
 def _add_metadata(module: nn.Module):
-    module.torchexplorer_metadata = ExplorerMetadata()
+    module.torchexplorer_metadata = ExplorerMetadata() # type: ignore
 
 def _clear_temporary_metadata(module: nn.Module):
     module.torchexplorer_metadata.input_gradfns.clear()
@@ -169,18 +166,19 @@ def _clear_temporary_metadata(module: nn.Module):
     module.torchexplorer_metadata.backward_invocation_counter = 0
 
 def _add_io_histogram_hooks(
-        module: nn.Module, hist_params: HistogramParams, should_log_callback: callable
+        module: nn.Module, hist_params: HistogramParams, should_log_callback: Callable
     ):
+
     def post_hook(
             module: nn.Module,
             inputs: tuple[OTensor],
             outputs: Union[OTensor, tuple[OTensor]]
         ):
+
         if not module.training or not should_log_callback():
             return
 
-        if outputs is None or isinstance(outputs, Tensor):
-            outputs = (outputs,)
+        outputs_tuple, _ = _ensure_tuple(outputs)
 
         metadata = module.torchexplorer_metadata
         invocation_id = metadata.forward_invocation_counter - 1
@@ -190,28 +188,35 @@ def _add_io_histogram_hooks(
         inv_hists = metadata.invocation_hists[invocation_id]
 
         input_hists, output_hists = inv_hists.input_hists, inv_hists.output_hists
-        for tensors, histograms in [(inputs, input_hists), (outputs, output_hists)]:
+        for tensors, hists in [(inputs, input_hists), (outputs_tuple, output_hists)]:
             for i, tensor in enumerate(tensors):
-                if len(histograms) <= i:
-                    histograms.append(IncrementalHistogram(hist_params))
+                if len(hists) <= i:
+                    hists.append(IncrementalHistogram(hist_params))
                 if tensor is not None:
-                    histograms[i].update(tensor)
+                    hists[i].update(tensor)
 
-    module.apply(lambda m: m.register_forward_hook(post_hook))
+    def hook_module(m: nn.Module):
+        m.register_forward_hook(post_hook)
+    module.apply(hook_module)
 
 def _add_io_grad_histogram_hooks(
         module: nn.Module,
         hist_params: HistogramParams,
-        should_log_callback: callable,
+        should_log_callback: Callable,
         ignore_classes: list[type]
     ):
 
     def backward_hook(
-            module: nn.Module, grad_input: tuple[OTensor], grad_output: tuple[OTensor]
+            module: nn.Module,
+            grads_input: Union[OTensor, tuple[OTensor, ...]],
+            grads_output: Union[OTensor, tuple[OTensor, ...]]
         ) -> None:
 
         if not module.training or not should_log_callback():
             return
+
+        grads_input_tuple, _ = _ensure_tuple(grads_input)
+        grads_output_tuple, _ = _ensure_tuple(grads_output)
 
         metadata = module.torchexplorer_metadata
         # When going backwards, assume that the backward hooks are called in reverse
@@ -225,7 +230,8 @@ def _add_io_grad_histogram_hooks(
         inv_hists = metadata.invocation_grad_hists[invocation_id]
 
         for tensors, hists in (
-            [(grad_input, inv_hists.input_hists), (grad_output, inv_hists.output_hists)]
+            [(grads_input_tuple, inv_hists.input_hists),
+             (grads_output_tuple, inv_hists.output_hists)]
         ):
             for i, tensor in enumerate(tensors):
                 if len(hists) <= i:
@@ -245,3 +251,11 @@ def _add_io_grad_histogram_hooks(
             _add_io_grad_histogram_hooks(
                 child, hist_params, should_log_callback, ignore_classes
             )
+
+def _ensure_tuple(
+        x: Union[OTensor, tuple[OTensor, ...]]
+    ) -> tuple[tuple[OTensor, ...], bool]:
+
+    is_single = x is None or isinstance(x, Tensor)
+    ret_x = (x,) if is_single else x
+    return ret_x, is_single # type: ignore 

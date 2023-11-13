@@ -7,7 +7,7 @@ import wandb
 import sys
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 from torchexplorer import core, hook, layout, structure
 from torchexplorer.histogram import HistogramParams
@@ -30,7 +30,7 @@ def watch(
         bins: int = 10,
         sample_n: int = 100,
         reject_outlier_proportion: float = 0,
-        time_log: tuple[str, callable] = ('step', lambda module, step: step),
+        time_log: tuple[str, Callable] = ('step', lambda module, step: step),
         backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
         standalone_dir: str = './torchexplorer_standalone',
         standalone_port: int = 5000
@@ -52,8 +52,8 @@ def watch(
         reject_outlier_proportion (float): The proportion of outliners to reject when
             computing histograms, based on distance to the median. 0.0 means reject
             nothing, 1.0 means reject everything
-        time_log: ([tuple[str, callable]): A tuple of (time_unit, callable) to use for
-            logging. The callable should take in the module and step and return a value
+        time_log: ([tuple[str, Callable]): A tuple of (time_unit, Callable) to use for
+            logging. The allable should take in the module and step and return a value
             to log. The time_unit string is just the axis label on the histogram graph.
             If "module" is a pytorch lightning modules, torchexplorer.LIGHTNING_EPOCHS
             should work to change the time axis to epochs.
@@ -76,7 +76,7 @@ def watch(
     hist_params = HistogramParams(bins, sample_n, reject_outlier_proportion, time_name)
     step_counter = 0
     should_log_callback = lambda: step_counter % log_freq == 0
-    wrapper = StructureWrapper
+    wrapper = StructureWrapper()
 
     if backend == 'standalone':
         _standalone_backend_init(standalone_dir, standalone_port)
@@ -161,7 +161,7 @@ def _standalone_backend_init(standalone_dir: str, standalone_port: int):
 
     # Launch flask app
     sys.path.insert(1, target_app_path)
-    import app
+    import app # type: ignore
     app.vega_spec_path = target_vega_path
     threading.Thread(target=lambda: app.app.run(port=standalone_port)).start()
 
@@ -179,14 +179,8 @@ def _standalone_backend_update(
 
 
 def _disable_inplace(module: nn.Module):
-    """Disable inplace operations for nonlinearities in a module. This is useful
-    since inplace operations will throw an error when logging gradients.
-
-    Args:
-        module (nn.Module): The module to disable inplace operations for.
-    """
     def disable(m: nn.Module):
         if hasattr(m, 'inplace'):
-            m.inplace = False
+            m.inplace = False # type: ignore
 
     module.apply(disable)

@@ -78,6 +78,7 @@ def _layout_into(
         if object['label'] not in ['Input', 'Output']:
             memory_id = int(object['memory_id'])
             object_struct = structure.get_inner_structure_from_memory_id(memory_id)
+            assert object_struct is not None
 
             metadata = object_struct.module_metadata()
 
@@ -121,6 +122,7 @@ def _process_graph(renderable: ModuleInvocationRenderable):
         new_id = renderable_id_counter
         renderable_id_counter += 1
 
+        assert r.display_name is not None
         new_stack = parent_stack + [(r.display_name, new_id)]
 
         child_ids = []
@@ -393,6 +395,7 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
     )
     param_hists_str = interleave_and_serialize_dict(param_hists, param_grad_hists)
 
+    assert (r.child_ids is not None) and (r.parent_stack is not None)
 
     new_object = {
         'id': r.id,
@@ -436,7 +439,7 @@ def _serialize_edge(edge: OrthoEdge) -> dict:
         return ';'.join(['::'.join([str(x) for x in point]) for point in points])
 
     # Makes things easier in vega
-    end_of_path = [[-10000, -10000]]
+    end_of_path = [[-10000.0, -10000.0]]
     return {
         'downstream_input_index': edge.downstream_input_index,
         'upstream_output_index': edge.upstream_output_index,

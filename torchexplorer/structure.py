@@ -1,6 +1,6 @@
 from torch import nn
 
-from typing import Union
+from typing import Optional, Union
 from dataclasses import dataclass
 
 from torchexplorer.core import GradFn, InvocationId, ModuleInvocationStructure
@@ -63,6 +63,8 @@ def extract_structure(
 
             if upstream.node == 'Input':
                 continue
+
+            assert isinstance(upstream.node, ModuleInvocationStructure)
                 
             if not upstream.node.upstreams_fetched:
                 for j, input_gradfn in enumerate(_get_input_gradfns(upstream.node)):
@@ -125,10 +127,16 @@ def _inner_recurse(
     return all_upstreams
 
 
-def _get_input_gradfns(structure: ModuleInvocationStructure) -> tuple[GradFn]:
+def _get_input_gradfns(
+        structure: ModuleInvocationStructure
+    ) -> tuple[Optional[GradFn], ...]:
+
     return structure.module_metadata().input_gradfns[structure.invocation_id]
 
-def _get_output_gradfns(structure: ModuleInvocationStructure) -> tuple[GradFn]:
+def _get_output_gradfns(
+        structure: ModuleInvocationStructure
+    ) -> tuple[Optional[GradFn], ...]:
+
     return structure.module_metadata().output_gradfns[structure.invocation_id]
 
 

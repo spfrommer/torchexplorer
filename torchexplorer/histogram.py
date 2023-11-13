@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import random
-from typing import Literal
+from typing import Literal, Optional
 import torch
 import numpy as np
 from torch import Tensor
@@ -23,10 +23,10 @@ class IncrementalHistogram:
 
     def __init__(self, params: HistogramParams):
         self.params = params
-        self.min = None
-        self.max = None
+        self.min: Optional[float] = None
+        self.max: Optional[float] = None
 
-        self.history_times = [] # e.g., the step
+        self.history_times: list[int] = [] # e.g., the step
         self.history_bins: list[HistogramCounts] = []
         self.bin_counts: HistogramCounts = [0 for _ in range(self.params.bins)]
 
@@ -50,9 +50,10 @@ class IncrementalHistogram:
 
         while self.min >= t_min:
             self._rebin('min')
-
         while self.max <= t_max:
             self._rebin('max')
+
+        assert (self.min is not None) and (self.max is not None)
         hist = torch.histc(
             tensor.to('cpu'), bins=self.params.bins, min=self.min, max=self.max
         )
