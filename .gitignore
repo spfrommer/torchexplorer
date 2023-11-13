@@ -3,6 +3,7 @@ pretrain/
 /data/
 .vscode/
 *.swp
+notes.txt
 
 torchexplorer_standalone/
 

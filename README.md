@@ -10,6 +10,10 @@
   <img src="./res/usage.gif" alt="animated" />
 </p>
 
+<p align="center">
+<em> Play around with the above <a href="https://api.wandb.ai/links/spfrom_team/8qqsxx9f">example</a> yourself. </em>
+</p>
+
 
 Curious about what's happening in your network? TorchExplorer is a simple tool that allows you to interactively inspect the inputs, outputs, parameters, and gradients for each `nn.Module` in your network. It integrates with [weights and biases](https://wandb.ai/site) and can also operate locally as a standalone solution. If your use case fits (see do's/don'ts below), it's very simple to try:
 
@@ -45,7 +49,7 @@ The api surface is just one function call, inspired by wandb's [watch](https://d
 def watch(
     module: nn.Module,
     log: list[str] = ['io', 'io_grad', 'params', 'params_grad'],
-    log_freq: int = 1000,
+    log_freq: int = 100,
     ignore_io_grad_classes: list[type] = [],
     disable_inplace: bool = False,
     bins: int = 10,

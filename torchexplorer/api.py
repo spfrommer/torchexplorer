@@ -24,7 +24,7 @@ LIGHTNING_EPOCHS = ('epoch', lambda module, step: module.current_epoch)
 def watch(
         module: nn.Module,
         log: list[str] = ['io', 'io_grad', 'params', 'params_grad'],
-        log_freq: int = 1000,
+        log_freq: int = 100,
         ignore_io_grad_classes: list[type] = [],
         disable_inplace: bool = False,
         bins: int = 10,
@@ -46,7 +46,7 @@ def watch(
             io_grad. This is useful for ignoring classes which do inplace operations,
             which will throw an error.
         disable_inplace (bool): disables the 'inplace' attribute for all activations in
-            the module. 
+            the module.
         bins (int): The number of bins to use for histograms.
         sample_n (int): The number of tensor elements to randomly sample for histograms.
         reject_outlier_proportion (float): The proportion of outliners to reject when
@@ -106,7 +106,7 @@ def watch(
         # all the other hooks
         nonlocal step_counter, wrapper
         step_counter += 1
-        
+
         if should_log_callback():
             time = time_fn(module, step_counter)
             hook.push_histogram_histories(
@@ -122,7 +122,7 @@ def watch(
                 _wandb_backend_update(renderable)
             elif backend == 'standalone':
                 _standalone_backend_update(renderable, standalone_dir)
-            
+
 
     module.register_forward_hook(post_forward_hook)
     module.register_full_backward_hook(post_backward_hook)
@@ -188,5 +188,5 @@ def _disable_inplace(module: nn.Module):
     def disable(m: nn.Module):
         if hasattr(m, 'inplace'):
             m.inplace = False
-    
+
     module.apply(disable)
