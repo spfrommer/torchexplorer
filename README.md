@@ -2,6 +2,12 @@
 <img src="./res/logo.svg" width="500">
 </p>
 
+<div align="center">
+
+  <a href="">![example1](https://img.shields.io/badge/version-0.1.0-orange)</a>
+
+</div>
+
 <p align="center">
 <em> Made by <a href="https://sam.pfrommer.us/">Samuel Pfrommer</a> as part of <a href="https://www2.eecs.berkeley.edu/Faculty/Homepages/sojoudi.html">Somayeh Sojoudi's group</a> at Berkeley. </em>
 </p>
@@ -11,11 +17,11 @@
 </p>
 
 <p align="center">
-<em> Play around with the above <a href="https://api.wandb.ai/links/spfrom_team/8qqsxx9f">example</a> yourself. </em>
+<em> <a href="https://api.wandb.ai/links/spfrom_team/8qqsxx9f">Try it yourself.</a>  </em>
 </p>
 
 
-Curious about what's happening in your network? TorchExplorer is a simple tool that allows you to interactively inspect the inputs, outputs, parameters, and gradients for each `nn.Module` in your network. It integrates with [weights and biases](https://wandb.ai/site) and can also operate locally as a standalone solution. If your use case fits (see do's/don'ts below), it's very simple to try:
+Curious about what's happening in your network? TorchExplorer is a simple tool that allows you to interactively inspect the inputs, outputs, parameters, and gradients for each `nn.Module` in your network. It integrates with [weights and biases](https://wandb.ai/site) and can also operate locally as a standalone solution. If your use case fits (see limitations below), it's very simple to try:
 
 ```python
 model = ...
@@ -41,14 +47,14 @@ If you want to run the visualization as a standalone app for local training (as 
 pip install flask
 ```
 
-### Using the UI
+### User interface
 **Explorer.** The left-hand panel contains a module-level graph of your network architecture, automatically extracted from the autograd graph. Clicking on a module will open its "internal" submodules. To return to a parent module, click on the appropriate element in the top-left expanding list.
 
 **Panels.** To inspect a module in more detail, just drag and drop it into one of the columns on the right. The histogram colors don't represent anything intrinsically—they're just to help identify in the explorer which modules are being visualized.
 
 **Histograms.** Each vertical "slice" of a histogram encodes the distribution of values at the corresponding x-axis time. The y-axis displays the minimum / maximum bounds of the histogram. Completely white squares mean that no data fell in that bin. A bin with one entry will be shaded light gray, with the color intensifying as more values fall in that bin (this encodes the "height" of the histogram). The dashed horizontal line is the $y=0$ line.
 
-For the following explanations, I'll be referencing the following module.
+For the following explanations, I'll be referencing this module:
 ```python
 class TestModule(nn.Module):
     def __init__(self):
@@ -66,7 +72,7 @@ _Input/output histograms._ These histograms represent the values passed into and
 
 _Input/output gradient norm histograms._ These histograms capture tensor gradients from `backward` passes through the module. Unlike parameter gradients, we record here the $\ell_2$-norm of the gradients, averaged over the batch dimension. This means that if the gradient of the loss with respect to the module input is of dimension $b \times d_1 \times d_2$, we first flatten to a $b \times (d_1 \cdot d_2)$ vector and take the row-wise norm to get a length $b$ vector. These values then populate the histogram. For the `fc` layer in the above example, `input 0 (grad norm)` would apply this procedure to the gradient of the loss with respect to `x`, while `output 0 (grad norm)` would apply this procedure to the gradient of the loss with respect to `y`.
 
-_Parameter histograms._ After the input/output histograms are extracted, all submodules will have their immediate parameters (`module._parameters`) logged as histograms. Note that this is not the same as `module.parameters()`, which would also recurse to include all child parameters.
+_Parameter histograms._ After the input/output histograms are extracted, all submodules will have their immediate parameters (`module._parameters`) logged as histograms. Note that this is not the same as `module.parameters()`, which would also recurse to include all child parameters. Some modules (particularly activations) have no parameters and nothing will show up in the interface. For instance, `TestModule` above has no trainable immediate parameters; `fc` will have `weight` and `bias` parameters`; and `activation` will again have nothing.
 
 _Parameter gradient histograms._ After the `backward` call is completed, each parameter will have a `.grad` attribute storing the gradient of the loss with respect to that parameter. This tensor is directly passed to the histogram. Unlike the input/output gradients, no norms are computed.
 
@@ -121,19 +127,13 @@ Args:
 """
 ```
 
-## Do's, don'ts, and other notes
+## Features and limitations
 
+Notes on some corner cases. If something isn't covered here, feel free to open a GitHub issue.
 
-1. When invoking a module, **don't use the `module.forward(x)` method**. Always call the forwards method as `module(x)`. The former does not call the hooks that `torchexplorer` uses.
-2. Only call `.backward()` once in a training step.
-3. **Recursive operations are not supported,** and **anything which dynamically changes the module-level control flow over training is not supported**. For instance, something like this isn't permissible:
-```python
-if x > 0:
-    return self.module1(x)
-else:
-    return self.module2(x)
-```
-4. However, performing multiple invocations of the same module is supported. Inputs/outputs will be displayed separately for each invocation, but the parameters and parameter gradients will of course be shared. So something like this should work:
+### Supported
+
+1. Performing multiple invocations of the same module is supported. Inputs/outputs will be displayed separately for each invocation, but the parameters and parameter gradients will of course be shared. So something like this should work:
 ```python
 class TestModule(nn.Module):
     def __init__(self):
@@ -147,14 +147,29 @@ class TestModule(nn.Module):
         x = self.activation(x)
         return x  
 ```
-5. **Inplace operations are not supported** and should be corrected or filtered (see "Common errors" below).
-6. Keyword tensor arguments to the forwards method are not supported. In other words, only positional arguments will be tracked. Behavior for keyword tensor arguments is untested as of now.
-7. Nondifferentiable operations which break the autograd graph are permissible and should not cause a crash. However, the resulting module-level graph will be correspondingly disconnected.
-8. Histograms will only be updated during _training_, not validation. This is directly checked using `module.training`. This means that if your validation dataset has a different distribution than your training dataset, what you see in the tool might not tell you what's going on during validation.
+2. Nondifferentiable operations which break the autograd graph are permissible and should not cause a crash. However, the resulting module-level graph will be correspondingly disconnected.
+
+### Unsupported
+
+1. Having multiple `.backward()` calls in one training step is not supported.
+2. **Recursive operations are not supported,** and **anything which dynamically changes the module-level control flow over training is not supported**. For instance, something like this isn't permissible:
+```python
+if x > 0:
+    return self.module1(x)
+else:
+    return self.module2(x)
+```
+3. **Inplace operations are not supported** and should be corrected or filtered (see "Common errors" below).
+4. Keyword tensor arguments to the `forward` method are not supported. Only positional arguments will be tracked. Behavior for keyword tensor arguments is untested as of now.
+
+### Other notes
+
+1. When invoking a module, **don't use the `module.forward(x)` method**. Always call the forward method as `module(x)`. The former does not call the hooks that `torchexplorer` uses.
+2. Histograms will only be updated during _training_, not validation. This is directly checked using `module.training`. This means that if your validation dataset has a different distribution than your training dataset, what you see in the tool might not tell you what's going on during validation.
 
 ## Common errors
 
-This section includes a nonexhaustive list of errors that I've run into. For something not covered here, feel free to open a GitHub issue.
+This section includes some errors that I've run into. For something not covered here, feel free to open a GitHub issue.
 
 
 **1. Inplace operations in the computational graph**
