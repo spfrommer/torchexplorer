@@ -1,0 +1,1402 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "A neural network visualizer.",
+  "width": 1700,
+  "height": 600,
+  "padding": 0,
+  "autosize": "fit",
+  "config": {
+    "signals": [
+      {"name": "explorer_min_width", "update": "if(width >= 1500, 450, 300)"},
+      {"name": "panel_width", "value": 300},
+      {"name": "explorer_width", "update": "explorer_min_width + (width - explorer_min_width) % panel_width"},
+      {"name": "explorer_adaptive_translate_x", "update": "explorer_width / 2"},
+      {"name": "explorer_adaptive_translate_y", "update": "height - 80"},
+      {"name": "parents_navigator_width", "update": "explorer_width / 2.4"},
+      {"name": "panel_header_height", "value": 40},
+      {"name": "subpanel_header_height", "value": 15},
+      {"name": "subpanel_footer_height", "value": 15},
+      {"name": "histogram_inner_width", "value": 130},
+      {"name": "histogram_height", "value": 100},
+      {"name": "histogram_header_height", "value": 30},
+      {"name": "histogram_footer_height", "value": 8},
+      {"name": "histogram_total_height", "init": "histogram_height + histogram_header_height + histogram_footer_height"},
+      {"name": "histograms_per_row", "value": 2},
+      {"name": "histogram_width", "init": "panel_width / histograms_per_row"},
+      {"name": "histogram_margin", "init": "0.5 * (histogram_width - histogram_inner_width)"},
+      {"name": "bookmark_width", "value": 8},
+      {"name": "neutral_color", "value": "#ffffff"},
+      {"name": "off_neutral_color", "value": "#f9f9f6"},
+      {
+        "name": "panels_scheme",
+        "value": [
+          ["#eeeeee", "#e41a1c"],
+          ["#eeeeee", "#377eb8"],
+          ["#eeeeee", "#4daf4a"],
+          ["#eeeeee", "#984ea3"],
+          ["#eeeeee", "#ff7f00"]
+        ]
+      },
+      {
+        "name": "panels_highlight_color",
+        "//": "An extra neutral at the start to color unselected nodes.",
+        "value": [
+          "#ffffff", 
+          "#e41a1c",
+          "#377eb8",
+          "#4daf4a",
+          "#984ea3",
+          "#ff7f00"
+        ]
+      },
+      {"name": "panel_n", "update": "floor((width - explorer_width) / panel_width)"},
+      {"name": "node_text_fontsize", "value": 16}
+    ]
+  },
+
+  "data": [
+    { "name": "wandb"
+    },
+    { "name": "nodes",
+      "source": "wandb",
+      "transform": [
+        {
+          "type": "filter", "expr": "datum.type == 'nodes'"
+        },
+        {
+          "type": "project",
+          "fields": ["nodes:id", "nodes:parent_stack", "nodes:active_on_id", "nodes:display_name", "nodes:tooltip", "nodes:input_histograms", "nodes:output_histograms", "nodes:param_histograms", "nodes:bottom_left_corner_x", "nodes:bottom_left_corner_y", "nodes:top_right_corner_x", "nodes:top_right_corner_y", "nodes:child_ids"],
+          "as": ["id", "parent_stack", "active_on_id", "display_name", "tooltip", "input_histograms", "output_histograms", "param_histograms", "bottom_left_corner_x", "bottom_left_corner_y", "top_right_corner_x", "top_right_corner_y", "child_ids"]
+        },
+        {
+          "type": "formula",
+          "as": "interactive",
+          "expr": "datum.display_name != 'Input' && datum.display_name != 'Output'"
+        }
+      ]
+    },
+    { "name": "all_edges",
+      "source": "wandb",
+      "transform": [
+        {
+          "type": "filter", "expr": "datum.type == 'edges'"
+        },
+        {
+          "type": "project",
+          "fields": ["edges:active_on_id", "edges:downstream_input_index", "edges:upstream_output_index", "edges:path_points", "edges:arrowhead_points"],
+          "as": ["active_on_id", "downstream_input_index", "upstream_output_index", "path_points", "arrowhead_points"]
+        },
+        {
+          "type": "fold",
+          "fields": ["path_points", "arrowhead_points"],
+          "as": ["points_src", "points"] 
+        },
+        {
+          "type": "formula",
+          "as": "points",
+          "expr": "split(datum.points, ';')"
+        },
+        {
+          "type": "flatten",
+          "fields": ["points"]
+        },
+        {
+          "type": "formula",
+          "as": "points",
+          "expr": "split(datum.points, '::')"
+        },
+        {
+          "type": "project",
+          "fields": ["points_src", "active_on_id", "points[0]", "points[1]"],
+          "as": ["points_src", "active_on_id", "point_x", "point_y"]
+        },
+        {
+          "type": "formula",
+          "as": "point_x",
+          "expr": "parseFloat(datum.point_x)"
+        },
+        {
+          "type": "formula",
+          "as": "point_y",
+          "expr": "parseFloat(datum.point_y)"
+        }
+      ]
+    },
+    { "name": "active_nodes",
+      "source": "nodes",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum.active_on_id == active_node_id"
+        },
+        {
+          "type": "filter",
+          "expr": "scale('yscale_explorer', datum.top_right_corner_y) > 0 && scale('yscale_explorer', datum.bottom_left_corner_y) < height"
+        }
+      ]
+    },
+    { "name": "active_node_bookmarks",
+      "source": "active_nodes",
+      "transform": [
+        {
+          "type": "formula",
+          "as": "child_ids",
+          "expr": "split(datum.child_ids, ';')"
+        },
+        {
+          "type": "formula",
+          "as": "visualized_bookmarks",
+          "expr": "[indexof(datum.child_ids, toString(panels_node_id_all[0])) >= 0, indexof(datum.child_ids, toString(panels_node_id_all[1])) >= 0, indexof(datum.child_ids, toString(panels_node_id_all[2])) >= 0, indexof(datum.child_ids, toString(panels_node_id_all[3])) >= 0, indexof(datum.child_ids, toString(panels_node_id_all[4])) >= 0]"
+        },
+        {
+          "type": "flatten",
+          "as": ["show_bookmark"],
+          "fields": ["visualized_bookmarks"],
+          "index": "bookmark_index"
+        },
+        {
+          "type": "filter",
+          "expr": "datum.show_bookmark"
+        },
+        {
+          "type": "formula",
+          "as": "bookmark_x",
+          "expr": "datum.bottom_left_corner_x + datum.bookmark_index * bookmark_width"
+        },
+        {
+          "type": "formula",
+          "as": "bookmark_y",
+          "expr": "datum.top_right_corner_y"
+        },
+        {
+          "type": "formula",
+          "as": "bookmark_color",
+          "expr": "panels_highlight_color[datum.bookmark_index+1]"
+        },
+        {
+          "type": "formula",
+          "as": "bookmark_lines",
+          "expr": "[{point_x: 0, point_y: 0}, {point_x: 0, point_y: -6}, {point_x: 2, point_y: -4}, {point_x: 4, point_y: -6}, {point_x: 4, point_y: 0}]"
+        },
+        {
+          "type": "flatten",
+          "fields": ["bookmark_lines"]
+        },
+        {
+          "type": "formula",
+          "as": "bookmark_lines",
+          "expr": "{'point_x': datum.bookmark_lines['point_x'] + datum.bookmark_x + 5, 'point_y': datum.bookmark_lines['point_y'] + datum.bookmark_y}"
+        },
+        {
+          "type": "project",
+          "fields": ["bookmark_color", "bookmark_lines.point_x", "bookmark_lines.point_y"],
+          "as": ["bookmark_color", "point_x", "point_y"]
+        }
+      ]
+    },
+    { "name": "active_path_edges",
+      "source": "all_edges",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "(datum.active_on_id == active_node_id) && (datum.points_src=='path_points')"
+        }
+      ]
+    },
+    { "name": "active_arrowhead_edges",
+      "source": "all_edges",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "(datum.active_on_id == active_node_id) && (datum.points_src=='arrowhead_points')"
+        }
+      ]
+    },
+    { "name": "active_parents",
+      "source": "nodes",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum.id == active_node_id"
+        },
+        {
+          "type": "formula",
+          "as": "parent_stack_split",
+          "expr": "split(datum.parent_stack, ';')"
+        },
+        {
+          "type": "flatten",
+          "fields": ["parent_stack_split"],
+          "index": "counter"
+        },
+        {
+          "type": "formula",
+          "as": "parent_stack_split2",
+          "expr": "split(datum.parent_stack_split, '::')"
+        },
+        {
+          "type": "project",
+          "fields": ["parent_stack_split2[0]", "parent_stack_split2[1]", "counter"],
+          "as": ["parent_display_name", "parent_id", "counter"]
+        },
+        {
+          "type": "formula",
+          "as": "parent_id",
+          "expr": "parseInt(datum.parent_id)"
+        },
+        {
+          "type": "formula",
+          "as": "y_position",
+          "expr": "25 * (datum.counter + 1)"
+        },
+        {
+          "type": "formula",
+          "as": "parent_display_name",
+          "expr": "if(datum.parent_id>0, '⤷', '') + datum.parent_display_name"
+        }
+      ]
+    },
+    { "name": "visualized_histograms",
+      "source": ["nodes"],
+      "transform": [
+        {
+          "type": "formula",
+          "as": "matching_panel_indices",
+          "expr": "[if(panels_node_id[0]==datum.id, 0, -1), if(panels_node_id[1]==datum.id, 1, -1), if(panels_node_id[2]==datum.id, 2, -1), if(panels_node_id[3]==datum.id, 3, -1), if(panels_node_id[4]==datum.id, 4, -1)]"
+        },
+        {
+          "type": "flatten",
+          "fields": ["matching_panel_indices"],
+          "as": ["panel_index"]
+        },
+        {
+          "type": "filter",
+          "expr": "datum.panel_index >= 0"
+        },
+        {
+          "type": "fold",
+          "fields": ["input_histograms", "output_histograms", "param_histograms"],
+          "as": ["subpanel_raw_name", "histograms"]
+        },
+        {
+          "type": "formula",
+          "as": "histograms_top_split",
+          "expr": "split(datum.histograms, '|')"
+        },
+        {
+          "type": "flatten",
+          "fields": ["histograms_top_split"],
+          "index": "histogram_index"
+        },
+        {
+          "type": "formula",
+          "as": "histograms_middle_split",
+          "expr": "split(datum.histograms_top_split, '!!')"
+        },
+        {
+          "type": "project",
+          "fields": ["display_name", "histograms_middle_split[0]", "histograms_middle_split[1]", "histograms_middle_split[2]", "histograms_middle_split[3]", "histograms_middle_split[4]", "histograms_middle_split[5]", "histograms_middle_split[6]", "histogram_index", "subpanel_raw_name", "panel_index"],
+          "as": ["node_name", "histogram_display_name", "minmax", "minmax_float", "time_type", "times_minmax", "times", "histogram_data", "histogram_index", "subpanel_raw_name", "panel_index"]
+        },
+        {
+          "type": "formula",
+          "as": "minmax_split",
+          "expr": "split(datum.minmax, '::')"
+        },
+        {
+          "type": "formula",
+          "as": "minmax_float_split",
+          "expr": "split(datum.minmax_float, '::')"
+        },
+        {
+          "type": "formula",
+          "as": "times_minmax_split",
+          "expr": "split(datum.times_minmax, '::')"
+        },
+        {
+          "type": "formula",
+          "as": "times",
+          "expr": "split(datum.times, '::')"
+        },
+        {
+          "type": "project",
+          "fields": ["node_name", "histogram_display_name", "minmax_split[0]", "minmax_split[1]", "minmax_float_split[0]", "minmax_float_split[1]", "time_type", "times_minmax_split[0]", "times_minmax_split[1]", "times", "histogram_data", "histogram_index", "subpanel_raw_name", "panel_index"],
+          "as": ["node_name", "histogram_display_name", "min_str", "max_str", "min_float", "max_float", "time_type", "time_min", "time_max", "times", "histogram_data", "histogram_index", "subpanel_raw_name", "panel_index"]
+        },
+        {
+          "type": "formula",
+          "as": "histogram_data_split",
+          "expr": "split(datum.histogram_data, ';')"
+        },
+        {
+          "type": "flatten",
+          "fields": ["histogram_data_split"],
+          "index": "x_index"
+        },
+        {
+          "type": "formula",
+          "as": "histogram_data_split_2",
+          "expr": "split(datum.histogram_data_split, '::')"
+        },
+        {
+          "type": "flatten",
+          "fields": ["histogram_data_split_2"],
+          "index": "y_index"
+        },
+        {
+          "type": "formula",
+          "as": "bin_count",
+          "expr": "parseFloat(datum.histogram_data_split_2)"
+        },
+        {
+          "type": "formula",
+          "as": "time",
+          "expr": "datum.times[datum.x_index]"
+        },
+        {
+          "type": "project",
+          "fields": ["node_name", "histogram_display_name", "min_str", "max_str", "min_float", "max_float", "x_index", "y_index", "bin_count", "histogram_index", "subpanel_raw_name", "panel_index", "time_type", "time_min", "time_max", "time"],
+          "as": ["node_name", "histogram_display_name", "min_str", "max_str", "min_float", "max_float", "x_index", "y_index", "bin_count", "histogram_index", "subpanel_raw_name", "panel_index", "time_type", "time_min", "time_max", "time"]
+        },
+        {
+          "type": "filter",
+          "expr": "datum.histogram_display_name != ''"
+        },
+        {
+          "type": "formula",
+          "as": "panel_x",
+          "expr": "explorer_width + (datum.panel_index) * panel_width"
+        },
+        {
+          "type": "formula",
+          "as": "subpanel_index",
+          "expr": "if(datum.subpanel_raw_name=='input_histograms', 0, if(datum.subpanel_raw_name=='output_histograms', 1, 2))"
+        },
+        {
+          "type": "joinaggregate",
+          "groupby": ["panel_index", "subpanel_index"],
+          "fields": ["histogram_index"],
+          "ops": ["max"],
+          "as": ["subpanel_max_histogram_index"]
+        },
+        {
+          "type": "formula",
+          "as": "subpanel_height",
+          "expr": "(1+floor(datum.subpanel_max_histogram_index / 2)) * (histogram_total_height) + subpanel_header_height + subpanel_footer_height"
+        },
+        {
+          "type": "window",
+          "groupby": ["panel_index"],
+          "sort": {
+            "field": ["subpanel_index", "histogram_index", "x_index", "y_index"],
+            "order": ["ascending", "ascending", "ascending", "ascending"]
+          },
+          "ops": ["lag"],
+          "fields": ["subpanel_height"],
+          "as": ["subpanel_height_shifted"]
+        },
+        {
+          "type": "formula",
+          "as": "subpanel_height_tmp",
+          "expr": "if(datum.histogram_index==0 && datum.x_index==0 && datum.y_index==0, datum.subpanel_height_shifted, 0)"
+        },
+        {
+          "type": "window",
+          "groupby": ["panel_index"],
+          "sort": {
+            "field": ["subpanel_index", "histogram_index", "x_index", "y_index"],
+            "order": ["ascending", "ascending", "ascending", "ascending"]
+          },
+          "ops": ["sum"],
+          "fields": ["subpanel_height_tmp"],
+          "as": ["subpanel_y"],
+          "ignorePeers": true
+        },
+        {
+          "type": "formula",
+          "as": "subpanel_y",
+          "expr": "datum.subpanel_y + panel_header_height"
+        },
+        {
+          "type": "formula",
+          "as": "histogram_x",
+          "expr": "(datum.histogram_index % histograms_per_row) * (histogram_inner_width + 2 * histogram_margin)"
+        },
+        {
+          "type": "formula",
+          "as": "histogram_y",
+          "expr": "floor(datum.histogram_index / histograms_per_row) * (histogram_total_height)"
+        }
+      ]
+    },
+    { "name": "dragged_node_data",
+      "values": [],
+      "on": [
+        {
+          "trigger": "dragged_node_id",
+          "remove": true
+        },
+        {
+          "trigger": "dragged_node_id >= 0",
+          "insert": "dragged_node_id"
+        }
+      ]
+    },
+    { "name": "panel_separator_data",
+      "source": "nodes",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum.id==0"
+        },
+        {
+          "type": "project",
+          "fields": [],
+          "as": []
+        },
+        {
+          "type": "formula",
+          "as": "panel_sequence",
+          "expr": "sequence(panel_n+1)"
+        },
+        {
+          "type": "flatten",
+          "fields": ["panel_sequence"],
+          "as": ["panel_id"]
+        },
+        {
+          "type": "formula",
+          "as": "rule_x",
+          "expr": "explorer_width + panel_width * datum.panel_id"
+        }
+      ]
+    }
+  ],
+
+  "signals": [
+    { "name": "active_node_id",
+      "value": 0,
+      "on": [
+        {
+          "events": "@node_texts:click, @node_rects:click",
+          "update": "if(datum.interactive, datum.id, active_node_id)"
+        },
+        {
+          "events": "@parents_navigator_texts:click",
+          "update": "datum.parent_id"
+        }
+      ]
+    },
+    { "name": "hover_node_id",
+      "value": -1,
+      "on": [
+        {
+          "events": "@node_texts:mouseover, @node_rects:mouseover",
+          "update": "if(datum.interactive, datum.id, -1)"
+        },
+        {
+          "events": "@node_texts:mouseout, @node_rects:mouseout",
+          "update": "-1"
+        }
+      ]
+    },
+    { "name": "mouse_position",
+      "on": [
+        {
+          "events": "mousemove",
+          "update": "{x: x(), y: y()}"
+        }
+      ]
+    },
+    { "name": "mouseover_panel_id",
+      "value": -1,
+      "on": [
+        {
+          "events": {"signal": "mouse_position"},
+          "update": "max(-1, floor((mouse_position.x - explorer_width) / panel_width))"
+        }
+      ]
+    },
+    { "name": "panels_node_id_all", "value": [-1, -1, -1, -1, -1],
+      "on": [
+        {
+          "events": "mouseup",
+          "update": "if(dragged_node_id < 0, panels_node_id_all, [if(mouseover_panel_id==0, dragged_node_id, panels_node_id_all[0]), if(mouseover_panel_id==1, dragged_node_id, panels_node_id_all[1]), if(mouseover_panel_id==2, dragged_node_id, panels_node_id_all[2]), if(mouseover_panel_id==3, dragged_node_id, panels_node_id_all[3]), if(mouseover_panel_id==4, dragged_node_id, panels_node_id_all[4])])"
+        }
+      ]
+    },
+    { "name": "panels_node_id",
+      "update": "slice(panels_node_id_all, 0, panel_n)"
+    },
+    { "name": "scroll_event_delta",
+      "value": "0",
+      "on": [
+        {
+          "events": "wheel!",
+          "force": true,
+          "update": "-0.7 * event.deltaY * pow(16, event.deltaMode)"
+        }
+      ]
+    },
+    { "name": "panels_scroll",
+      "value": [0, 0, 0, 0, 0],
+      "on": [
+        {
+          "events": {"signal": "scroll_event_delta"},
+          "force": true,
+          "update": "[min(0, panels_scroll[0] + if(mouseover_panel_id==0, scroll_event_delta, 0)), min(0, panels_scroll[1] + if(mouseover_panel_id==1, scroll_event_delta, 0)), min(0, panels_scroll[2] + if(mouseover_panel_id==2, scroll_event_delta, 0)), min(0, panels_scroll[3] + if(mouseover_panel_id==3, scroll_event_delta, 0)), min(0, panels_scroll[4] + if(mouseover_panel_id==4, scroll_event_delta, 0))]"
+        },
+        {
+          "events": {"signal": "panels_node_id[0]"},
+          "update": "[0, panels_scroll[1], panels_scroll[2], panels_scroll[3], panels_scroll[4]]"
+        },
+        {
+          "events": {"signal": "panels_node_id[1]"},
+          "update": "[panels_scroll[0], 0, panels_scroll[2], panels_scroll[3], panels_scroll[4]]"
+        },
+        {
+          "events": {"signal": "panels_node_id[2]"},
+          "update": "[panels_scroll[0], panels_scroll[1], 0, panels_scroll[3], panels_scroll[4]]"
+        },
+        {
+          "events": {"signal": "panels_node_id[3]"},
+          "update": "[panels_scroll[0], panels_scroll[1], panels_scroll[2], 0, panels_scroll[4]]"
+        },
+        {
+          "events": {"signal": "panels_node_id[4]"},
+          "update": "[panels_scroll[0], panels_scroll[1], panels_scroll[2], panels_scroll[3], 0]"
+        }
+      ]
+    },
+    { "name": "mouse_button_down",
+      "value": false,
+      "on": [
+        { "events": "mousedown", "update": "true" },
+        { "events": "mouseup", "update": "false" }
+      ]
+    },
+    { "name": "dragged_node_id",
+      "value": -1,
+      "on": [
+        {
+          "events": "@node_texts:mousedown{0,100}, @node_rects:mousedown{0,100}",
+          "update": "if(mouse_button_down && datum.interactive, datum.id, -1)"
+        },
+        {
+          "events": "mouseup",
+          "update": "-1"
+        }
+      ]
+    },
+    { "name": "dragged_node_metadata",
+      "on": [
+        {
+          "events": "@node_rects:mousedown, @node_texts:mousedown",
+          "update": "if(datum.interactive, {'width': datum.top_right_corner_x - datum.bottom_left_corner_x, 'height': datum.top_right_corner_y - datum.bottom_left_corner_y, 'display_name': datum.display_name}, dragged_node_metadata)"
+        }
+      ]
+    },
+    { "name": "mouse_down_position",
+      "value": null,
+      "on": [
+        {"events": "@explorer_background:mousedown", "update": "xy()"}
+      ]
+    },
+    { "name": "explorer_cum_delta",
+      "value": [0, 0],
+      "on": [
+        {
+          "events": "@explorer_background:mousedown",
+          "update": "[explorer_cum_delta[0]+explorer_current_delta[0], explorer_cum_delta[1]+explorer_current_delta[1]]"
+        },
+        {
+          "events": "@node_texts:click, @node_rects:click",
+          "update": "if(datum.interactive, [0, 0], explorer_cum_delta)"
+        },
+        {
+          "events": "@parents_navigator_texts:click",
+          "update": "[0,0]"
+        }
+      ]
+    },
+    { "name": "explorer_current_delta",
+      "value": [0, 0],
+      "on": [
+        {
+          "events": "[@explorer_background:mousedown, window:mouseup] > window:mousemove",
+          "update": "mouse_down_position ? [mouse_down_position[0]-x(), y()-mouse_down_position[1]] : [0,0]"
+        },
+        {
+          "events": "@explorer_background:mousedown",
+          "update": "[0,0]"
+        },
+        {
+          "events": "@node_texts:click, @node_rects:click",
+          "update": "if(datum.interactive, [0, 0], explorer_current_delta)"
+        },
+        {
+          "events": "@parents_navigator_texts:click",
+          "update": "[0,0]"
+        }
+      ]
+    },
+    { "name": "explorer_delta",
+      "value": [0, 0],
+      "update": "[explorer_cum_delta[0] + explorer_current_delta[0], explorer_cum_delta[1] + explorer_current_delta[1]]"
+    },
+    { "name": "explorer_view_xdomain",
+      "update": "[explorer_delta[0] - explorer_adaptive_translate_x, explorer_delta[0] + explorer_width - explorer_adaptive_translate_x]"
+    },
+    { "name": "explorer_view_ydomain",
+      "update": "[explorer_delta[1] - explorer_adaptive_translate_y, explorer_delta[1] + height - explorer_adaptive_translate_y]"
+    }
+  ],
+
+  "scales": [
+    { "name": "xscale_explorer",
+      "type": "linear",
+      "domain": {"signal": "explorer_view_xdomain"},
+      "range": {"signal": "[0, explorer_width]"},
+      "zero": false
+    },
+    { "name": "yscale_explorer",
+      "domain": {"signal": "explorer_view_ydomain"},
+      "range": "height",
+      "zero": false
+    }
+  ],
+
+  "marks": [
+    { "name": "explorer_background",
+      "//": "An empty background so we can capture drag events on the explorer background.",
+      "type": "rect",
+      "zindex": 0,
+      "encode": {
+        "enter": {
+        },
+        "update": {
+          "fill": {"signal": "neutral_color"},
+          "x": {"signal": "0"},
+          "x2": {"signal": "explorer_width"},
+          "y": {"signal": "0"},
+          "y2": {"signal": "height"},
+          "tooltip": {"value": ""}
+        }
+      }
+    },
+    { "name": "node_rects",
+      "type": "rect",
+      "zindex": 1,
+      "from": {"data": "active_nodes"},
+      "encode": {
+        "enter": {
+          "stroke": {"value": "black"},
+          "strokeWidth": {"value": 2},
+          "cornerRadius": {"value": 3}
+        },
+        "update": {
+          "strokeOpacity": [
+            {"test": "datum.id == hover_node_id", "value": 1.0},
+            {"value": 0.1}
+          ],
+          "fillOpacity": [
+            {"test": "datum.id == hover_node_id", "value": 0.4},
+            {"value": 0.3}
+          ],
+          "fill": {"signal": "panels_highlight_color[indexof(panels_node_id, datum.id)+1]"},
+          "x": {"scale": "xscale_explorer", "field": "bottom_left_corner_x"},
+          "x2": {"scale": "xscale_explorer", "field": "top_right_corner_x"},
+          "y": {"scale": "yscale_explorer", "field": "bottom_left_corner_y"},
+          "y2": {"scale": "yscale_explorer", "field": "top_right_corner_y"},
+          "tooltip": {"signal": "datum.tooltip"}
+        }
+      }
+    },
+    { "name": "node_texts",
+      "type": "text",
+      "zindex": 1,
+      "from": {"data": "active_nodes"},
+      "encode": {
+        "enter": {
+          "fill": {"value": "#000"}
+        },
+        "update": {
+          "opacity": {"value": 0.85},
+          "text": {"field": "display_name"},
+          "x": {"scale": "xscale_explorer", "signal": "(datum.bottom_left_corner_x+datum.top_right_corner_x)/2"},
+          "y": {"scale": "yscale_explorer", "signal": "(datum.bottom_left_corner_y+datum.top_right_corner_y)/2"},
+          "align": {"value": "center"},
+          "baseline": {"value": "middle"},
+          "font": {"value": "sans-serif"},
+          "fontSize": {"signal": "node_text_fontsize"},
+          "tooltip": {"signal": "datum.tooltip"}
+        }
+      }
+    },
+    { "name": "bookmark_group",
+      "//": "Need to wrap bookmarks in groups so that we can have multiple colors.",
+      "type": "group",
+      "zindex": 3,
+      "from": {
+        "facet": {
+          "data": "active_node_bookmarks",
+          "name": "bookmark_facet",
+          "groupby": ["bookmark_color"]
+        }
+      },
+      "marks": [
+        { "name": "bookmark_lines",
+          "type": "line",
+          "zindex": 3,
+          "from": {"data": "bookmark_facet"},
+          "encode": {
+            "update": {
+              "fill": {"field": "bookmark_color"},
+              "stroke": {"field": "bookmark_color"},
+              "opacity": {"value": 1.0},
+              "x": {"scale": "xscale_explorer", "field": "point_x"},
+              "y": {"scale": "yscale_explorer", "field": "point_y"},
+              "defined": {"signal": "scale('yscale_explorer', datum.point_y) > 0 && scale('yscale_explorer', datum.point_y) < height"}
+            }
+          }
+        }
+      ]
+    },
+    { "name": "path_lines",
+      "type": "line",
+      "zindex": 1,
+      "from": {"data": "active_path_edges"},
+      "encode": {
+        "enter": {
+          "stroke": {"value": "black"},
+          "strokeWidth": {"value": 2}
+        },
+        "update": {
+          "opacity": {"value": 0.7},
+          "x": {"scale": "xscale_explorer", "field": "point_x"},
+          "y": {"scale": "yscale_explorer", "field": "point_y"},
+          "defined": {"signal": "datum.point_x > -9999 && scale('yscale_explorer', datum.point_y) > 0 && scale('yscale_explorer', datum.point_y) < height"}
+        }
+      }
+    },
+    { "name": "arrowhead_lines",
+      "type": "line",
+      "zindex": 1,
+      "from": {"data": "active_arrowhead_edges"},
+      "encode": {
+        "enter": {
+          "stroke": {"value": "black"},
+          "strokeWidth": {"value": 2},
+          "fill": {"value": "black"}
+        },
+        "update": {
+          "opacity": {"value": 0.7},
+          "x": {"scale": "xscale_explorer", "field": "point_x"},
+          "y": {"scale": "yscale_explorer", "field": "point_y"},
+          "defined": {"signal": "datum.point_x > -9999 && scale('yscale_explorer', datum.point_y) > 0 && scale('yscale_explorer', datum.point_y) < height"}
+        }
+      }
+    },
+    { "name": "parents_navigator_texts",
+      "type": "text",
+      "zindex": 3,
+      "from": {"data": "active_parents"},
+      "encode": {
+        "enter": {
+          "fill": {"value": "#000"}
+        },
+        "update": {
+          "opacity": {"value": 0.6},
+          "text": {"field": "parent_display_name"},
+          "x": {"value": 10},
+          "y": {"field": "y_position"},
+          "align": {"value": "left"},
+          "baseline": {"value": "alphabetic"},
+          "font": {"value": "sans-serif"},
+          "fontSize": {"value": 18},
+          "limit": {"signal": "parents_navigator_width"}
+        },
+        "hover": {
+          "opacity": {"value": 1.0}
+        }
+      }
+    },
+    { "name": "parents_navigator_background",
+      "type": "rect",
+      "from": {"data": "parents_navigator_texts"},
+      "zindex": 2,
+      "encode": {
+        "enter": {
+          "cornerRadius": {"value": 3},
+          "strokeWidth": {"value": 2},
+          "stroke": {"value": "#000"},
+          "fillOpacity": {"value": 0.8}
+        },
+        "update": {
+          "fill": {"signal": "neutral_color"},
+          "x": {"signal": "0"},
+          "x2": {"signal": "datum.bounds.x2 + 10"},
+          "y": {"signal": "0"},
+          "y2": {"signal": "datum.bounds.y2 + 10"}
+        }
+      },
+      "//": "Do some fancy transforms to just have a single opaque background.",
+      "transform": [
+        {
+          "type": "identifier",
+          "as": "id"
+        },
+        {
+          "type": "joinaggregate",
+          "as": ["max_x", "max_y", "min_id"],
+          "fields": ["x2", "y2", "id"],
+          "ops": ["max", "max", "min"]
+        },
+        {
+          "type": "formula",
+          "as": "width",
+          "expr": "datum.max_x"
+        },
+        {
+          "type": "formula",
+          "as": "height",
+          "expr": "datum.max_y"
+        },
+        {
+          "type": "formula",
+          "as": "fillOpacity",
+          "expr": "if(datum.id==datum.min_id, datum.fillOpacity, 0)"
+        }
+      ]
+    },
+    { "name": "panel_background",
+      "//": "An empty background on the panels that covers the explorer.",
+      "type": "rect",
+      "zindex": 10,
+      "encode": {
+        "update": {
+          "fill": {"signal": "if(dragged_node_id==-1, neutral_color, off_neutral_color)"},
+          "x": {"signal": "explorer_width"},
+          "x2": {"signal": "width"},
+          "y": {"signal": "0"},
+          "y2": {"signal": "height"}
+        }
+      }
+    },
+    { "name": "panel_groups",
+      "//": "Renders one 'left panel' and one 'right panel'",
+      "type": "group",
+      "zindex": 11,
+      "from": {
+        "facet": {
+          "data": "visualized_histograms",
+          "name": "facet",
+          "groupby": ["panel_index", "panel_x", "node_name"]
+        }
+      },
+      "encode": {
+        "update": {
+          "x": {"field": "panel_x"},
+          "y": {"value": 0},
+          "width": {"signal": "panel_width"},
+          "height": {"signal": "height"},
+          "clip": {"value": true}
+        }
+      },
+      "marks": [
+        { "name": "subpanel_groups",
+          "//": "Render 'Input', 'Output', etc subpanels.",
+          "type": "group",
+          "from": {
+            "facet": {
+              "data": "facet",
+              "name": "facet2",
+              "groupby": ["subpanel_index", "subpanel_y", "subpanel_height"]
+            }
+          },
+          "signals": [],
+          "encode": {
+            "update": {
+              "x": {"value": 0},
+              "y": {"signal": "datum.subpanel_y + panels_scroll[parent.panel_index]"},
+              "width": {"signal": "panel_width"},
+              "height": {"field": "subpanel_height"},
+              "clip": {"value": true},
+              "opacity": {"value": 1}
+            }
+          },
+
+          "//2": "For the histogram_minmax_layout_data: When grouping by the histogram, the min/max fields are constant. So taking the max is just reducing to eventually give us two rows (one min, one max) for each histogram.",
+          "//3": "Similarly for the display name data, we aggregate using 'max' since the name field is constant after grouping by the histogram_index",
+          "data": [
+            { "name": "histogram_minmax_layout_data",
+              "source": "facet2",
+              "transform": [
+                {
+                  "type": "aggregate",
+                  "groupby": ["histogram_index", "histogram_x", "histogram_y"],
+                  "ops": ["max", "max"],
+                  "fields": ["min_str", "max_str"],
+                  "as": ["min_str", "max_str"]
+                },
+                {
+                  "type": "formula",
+                  "as": "text_x",
+                  "expr": "datum.histogram_x + histogram_margin + 3"
+                },
+                {
+                  "type": "fold",
+                  "fields": ["min_str", "max_str"],
+                  "as": ["bound_type", "value"]
+                },
+                {
+                  "type": "formula",
+                  "as": "text_y",
+                  "expr": "subpanel_header_height + datum.histogram_y + histogram_header_height + if(datum.bound_type=='min_str', histogram_height-2, 2)"
+                },
+                {
+                  "type": "formula",
+                  "as": "text_baseline",
+                  "expr": "if(datum.bound_type=='min_str', 'bottom', 'top')"
+                }
+              ]
+            },
+            { "name": "histogram_zerorule_layout_data",
+              "source": "facet2",
+              "transform": [
+                {
+                  "type": "aggregate",
+                  "groupby": ["histogram_index", "histogram_x", "histogram_y"],
+                  "ops": ["max", "max"],
+                  "fields": ["min_float", "max_float"],
+                  "as": ["min_float", "max_float"]
+                },
+                {
+                  "type": "filter",
+                  "expr": "datum.min_float * datum.max_float < 0"
+                },
+                {
+                  "type": "formula",
+                  "as": "rule_proportion_y",
+                  "expr": "(datum.max_float) / (datum.max_float - datum.min_float)"
+                }
+              ]
+            },
+            { "name": "histogram_time_max_layout_data",
+              "source": "facet2",
+              "transform": [
+                {
+                  "type": "aggregate",
+                  "groupby": ["histogram_index", "histogram_x", "histogram_y", "time_type"],
+                  "ops": ["max", "max"],
+                  "fields": ["time_min", "time_max"],
+                  "as": ["time_min", "time_max"]
+                },
+                {
+                  "type": "formula",
+                  "as": "text_y",
+                  "expr": "subpanel_header_height + datum.histogram_y + histogram_height + histogram_header_height"
+                },
+                {
+                  "type": "fold",
+                  "fields": ["time_max"],
+                  "as": ["bound_type", "value"]
+                },
+                {
+                  "type": "formula",
+                  "as": "text_x",
+                  "expr": "datum.histogram_x + if(datum.bound_type=='time_min', histogram_margin, histogram_width - histogram_margin)"
+                },
+                {
+                  "type": "formula",
+                  "as": "text_align",
+                  "expr": "if(datum.bound_type=='time_min', 'left', 'right')"
+                }
+              ]
+            },
+            { "name": "histogram_display_name_data",
+              "source": "facet2",
+              "transform": [
+                {
+                  "type": "aggregate",
+                  "groupby": ["histogram_index", "histogram_x", "histogram_y"],
+                  "ops": ["max"],
+                  "fields": ["histogram_display_name"],
+                  "as": ["histogram_display_name"]
+                }
+              ]
+            },
+            { "name": "subpanel_display_name_data",
+              "source": "facet2",
+              "transform": [
+                {
+                  "type": "aggregate",
+                  "groupby": ["subpanel_raw_name"],
+                  "ops": ["max"],
+                  "fields": ["subpanel_raw_name"],
+                  "as": ["subpanel_raw_name"]
+                },
+                {
+                  "type": "formula",
+                  "as": "subpanel_display_name",
+                  "expr": "if(datum.subpanel_raw_name=='input_histograms', 'Input', if(datum.subpanel_raw_name=='output_histograms', 'Output', 'Params'))"
+                }
+              ]
+            }
+          ],
+
+          "marks": [
+            { "name": "histogram_groups",
+              "//": "Renders all the histograms in the subpanel.",
+              "type": "group",
+              "from": {
+                "facet": {
+                  "data": "facet2",
+                  "name": "facet3",
+                  "groupby": ["panel_index", "histogram_index", "histogram_x", "histogram_y"]
+                }
+              },
+              "encode": {
+                "update": {
+                  "x": {"signal": "datum.histogram_x"},
+                  "y": {"signal": "datum.histogram_y + histogram_header_height + subpanel_header_height"},
+                  "width": {"signal": "histogram_inner_width + 2 * histogram_margin"},
+                  "height": {"signal": "histogram_height"},
+                  "clip": {"value": true},
+                  "opacity": {"value": 1}
+                }
+              },
+              "scales": [
+                { "name": "histogram_xscale",
+                  "type": "band",
+                  "domain": {"data": "facet3", "field": "x_index"},
+                  "range": {"signal": "[histogram_margin, histogram_inner_width + histogram_margin]"}
+                },
+                { "name": "histogram_yscale",
+                  "type": "band",
+                  "domain": {"data": "facet3", "field": "y_index"},
+                  "range": {"signal": "[histogram_height, 0]"}
+                },
+                { "name": "histogram_color",
+                  "type": "linear",
+                  "range": {"scheme": {"signal": "panels_scheme[parent.panel_index]"}},
+                  "domain": {"data": "facet3", "field": "bin_count"},
+                  "zero": false,
+                  "nice": true
+                }
+              ],        
+              "marks": [
+                { "name": "histogram_bin_rects",
+                  "type": "rect",
+                  "from": {"data": "facet3"},
+                  "encode": {
+                    "enter": {
+                      "x": {"scale": "histogram_xscale", "field": "x_index"},
+                      "y": {"scale": "histogram_yscale", "field": "y_index"},
+                      "width": {"scale": "histogram_xscale", "band": 1},
+                      "height": {"scale": "histogram_yscale", "band": 1},
+                      "opacity": {"value": 1}
+                    },
+                    "update": {
+                      "fill": {"signal": "if(datum.bin_count==0, neutral_color, scale('histogram_color', datum.bin_count))"},
+                      "tooltip": {"signal": "datum.time_type + ': ' + datum.time + ', count: ' + datum.bin_count"}
+                    }
+                  },
+                  "transform": [
+                    {
+                      "type": "formula",
+                      "as": "width",
+                      "expr": "datum.width+1"
+                    },
+                    {
+                      "type": "formula",
+                      "as": "height",
+                      "expr": "datum.height+1"
+                    }
+                  ]
+                }
+              ]
+            },
+            { "name": "histogram_minmax_texts",
+              "//": "Renders the min/max text for each histogram in the subpanel.",
+              "type": "text",
+              "from": {"data": "histogram_minmax_layout_data"},
+              "encode": {
+                "enter": {
+                  "fill": {"value": "#000"},
+                  "text": {"signal": "datum.value"}
+                },
+                "update": {
+                  "x": {"field": "text_x"},
+                  "y": {"field": "text_y"},
+                  "baseline": {"field": "text_baseline"}
+                }
+              }
+            },
+            { "name": "histogram_time_max_texts",
+              "//": "Renders the x-axis max time text for each histogram in the subpanel.",
+              "type": "text",
+              "from": {"data": "histogram_time_max_layout_data"},
+              "encode": {
+                "enter": {
+                  "fill": {"value": "#000"},
+                  "text": {"signal": "datum.value"}
+                },
+                "update": {
+                  "x": {"signal": "datum.text_x - 2"},
+                  "y": {"signal": "datum.text_y + 3"},
+                  "align": {"field": "text_align"},
+                  "baseline": {"value": "top"}
+                }
+              }
+            },
+            { "name": "histogram_time_max_rules",
+              "//": "Renders the x-axis max time tick for each histogram in the subpanel.",
+              "type": "rule",
+              "from": {"data": "histogram_time_max_layout_data"},
+              "encode": {
+                "enter": {
+                  "stroke": {"value": "#000"},
+                  "strokeWidth": {"value": 1.5}
+                },
+                "update": {
+                  "x": {"field": "text_x"},
+                  "x2": {"field": "text_x"},
+                  "y": {"signal": "datum.text_y-1"},
+                  "y2": {"signal": "datum.text_y+5"}
+                }
+              }
+            },
+            { "name": "histogram_underline_rules",
+              "//": "Draws a line under the histogram.",
+              "type": "rule",
+              "from": {"data": "histogram_time_max_layout_data"},
+              "encode": {
+                "enter": {
+                  "stroke": {"value": "#000"},
+                  "strokeWidth": {"value": 1.5}
+                },
+                "update": {
+                  "x": {"signal": "datum.text_x - histogram_inner_width"},
+                  "x2": {"field": "text_x"},
+                  "y": {"signal": "datum.text_y"},
+                  "y2": {"signal": "datum.text_y"}
+                }
+              }
+            },
+            { "name": "histogram_overline_rules",
+              "//": "Draws a line over the histogram.",
+              "type": "rule",
+              "from": {"data": "histogram_time_max_layout_data"},
+              "encode": {
+                "enter": {
+                  "stroke": {"value": "#000"},
+                  "strokeWidth": {"value": 1.5}
+                },
+                "update": {
+                  "x": {"signal": "datum.text_x - histogram_inner_width"},
+                  "x2": {"field": "text_x"},
+                  "y": {"signal": "datum.text_y - histogram_height"},
+                  "y2": {"signal": "datum.text_y - histogram_height"}
+                }
+              }
+            },
+            { "name": "histogram_zero_rules",
+              "//": "Draws a line at y=0 on the histogram.",
+              "type": "rule",
+              "from": {"data": "histogram_zerorule_layout_data"},
+              "encode": {
+                "enter": {
+                  "stroke": {"value": "#000"},
+                  "strokeWidth": {"value": 2.5},
+                  "strokeDash": {"value": [8,2]}
+                },
+                "update": {
+                  "x": {"signal": "datum.histogram_x + histogram_margin + histogram_inner_width"},
+                  "x2": {"signal": "datum.histogram_x + histogram_margin + if(abs(datum.rule_proportion_y - 0.5) > 0.34, histogram_inner_width * 0.37, 0)"},
+                  "y": {"signal": "subpanel_header_height + histogram_header_height + datum.histogram_y + histogram_height * datum.rule_proportion_y"},
+                  "y2": {"signal": "subpanel_header_height + histogram_header_height + datum.histogram_y + histogram_height * datum.rule_proportion_y"}
+                }
+              }
+            },
+            { "name": "histogram_time_axis_label",
+              "//": "Renders the x-axis time label (e.g. 'steps') for each histogram in the subpanel.",
+              "type": "text",
+              "from": {"data": "histogram_time_max_layout_data"},
+              "encode": {
+                "enter": {
+                  "fill": {"value": "#000"},
+                  "text": {"signal": "datum.time_type"}
+                },
+                "update": {
+                  "x": {"signal": "datum.text_x - histogram_inner_width"},
+                  "y": {"signal": "datum.text_y + 3"},
+                  "align": {"value": "left"},
+                  "baseline": {"value": "top"}
+                }
+              }
+            },
+            { "name": "histogram_display_name_texts",
+              "type": "text",
+              "from": {"data": "histogram_display_name_data"},
+              "encode": {
+                "enter": {
+                  "fill": {"value": "#000"},
+                  "text": {"signal": "datum.histogram_display_name"}
+                },
+                "update": {
+                  "x": {"signal": "datum.histogram_x + histogram_margin + histogram_inner_width / 2"},
+                  "y": {"signal": "13 + datum.histogram_y + subpanel_header_height"},
+                  "baseline": {"value": "top"},
+                  "align": {"value": "center"},
+                  "fontSize": {"value": 12},
+                  "limit": {"signal": "histogram_inner_width - histogram_margin * 2"}
+                }
+              }
+            },
+            { "name": "subpanel_display_name_texts",
+              "type": "text",
+              "zindex": 2,
+              "from": {"data": "subpanel_display_name_data"},
+              "encode": {
+                "enter": {
+                  "fill": {"value": "#000"},
+                  "text": {"signal": "datum.subpanel_display_name"}
+                },
+                "update": {
+                  "x": {"signal": "panel_width/2"},
+                  "y": {"value": 5},
+                  "baseline": {"value": "top"},
+                  "align": {"value": "center"},
+                  "fontSize": {"value": 18}
+                }
+              }
+            },
+            { "name": "subpanel_display_name_background",
+              "type": "rect",
+              "zindex": 1,
+              "from": {"data": "subpanel_display_name_texts"},
+              "encode": {
+                "update": {
+                  "x": {"field": "bounds.x1", "offset": -20},
+                  "x2": {"field": "bounds.x2", "offset": 20},
+                  "y": {"field": "bounds.y1", "offset": -2},
+                  "y2": {"field": "bounds.y2", "offset": 2},
+                  "fill": {"signal": "if(dragged_node_id==-1, neutral_color, off_neutral_color)"}
+                }
+              }
+            },
+            { "name": "subpanel_display_name_rule",
+              "type": "rule",
+              "from": {"data": "subpanel_display_name_data"},
+              "encode": {
+                "enter": {
+                  "stroke": {"value": "#000"},
+                  "opacity": {"value": 0.5}
+                },
+                "update": {
+                  "x": {"signal": "10"},
+                  "x2": {"signal": "panel_width - 10"},
+                  "y": {"value": 14},
+                  "y2": {"value": 14},
+                  "strokeWidth": {"value": 1.5}
+                }
+              }
+            }
+          ]
+        },
+        { "name": "panel_header_background",
+          "type": "rect",
+          "encode": {
+            "update": {
+              "x": {"signal": "histogram_margin-2"},
+              "x2": {"signal": "panel_width-histogram_margin+2"},
+              "y": {"value": 1},
+              "y2": {"signal": "panel_header_height-4"},
+              "fill": {"signal": "neutral_color"},
+              "stroke": {"value": "#444"},
+              "strokeWidth": {"value": 2}
+            }
+          }
+        },
+        { "name": "panel_header",
+          "type": "text",
+          "encode": {
+            "update": {
+              "x": {"signal": "panel_width/2"},
+              "y": {"signal": "panel_header_height/2-2"},
+              "fontSize": {"value": 20},
+              "align": {"value": "center"},
+              "baseline": {"value": "middle"},
+              "text": {"signal": "parent.node_name"},
+              "limit": {"signal": "panel_width - histogram_margin * 2"}
+            }
+          }
+        }
+      ]
+    },
+    { "name": "dragged_node_rect",
+      "type": "rect",
+      "zindex": 20,
+      "from": {"data": "dragged_node_data"},
+      "encode": {
+        "enter": {
+          "stroke": {"value": "black"},
+          "strokeWidth": {"value": 2},
+          "fill": {"signal": "panels_highlight_color[indexof(panels_node_id, datum.data)+1]"},
+          "cornerRadius": {"value": 3}
+        },
+        "update": {
+          "strokeOpacity": [
+            {"value": 1.0}
+          ],
+          "fillOpacity": [
+            {"value": 0.4}
+          ],
+          "xc": {"signal": "mouse_position.x"},
+          "yc": {"signal": "mouse_position.y"},
+          "width": {"signal": "dragged_node_metadata.width"},
+          "height": {"signal": "dragged_node_metadata.height"}
+        }
+      }
+    },
+    { "name": "dragged_node_text",
+      "type": "text",
+      "zindex": 21,
+      "from": {"data": "dragged_node_data"},
+      "encode": {
+        "enter": {
+          "fill": {"value": "#000"}
+        },
+        "update": {
+          "opacity": {"value": 0.85},
+          "text": {"signal": "dragged_node_metadata.display_name"},
+          "x": {"signal": "mouse_position.x"},
+          "y": {"signal": "mouse_position.y"},
+          "align": {"value": "center"},
+          "baseline": {"value": "middle"},
+          "font": {"value": "sans-serif"},
+          "fontSize": {"signal": "node_text_fontsize"}
+        }
+      }
+    },
+    { "name": "separator_rules",
+      "type": "rule",
+      "from": {"data": "panel_separator_data"},
+      "zindex": 11,
+      "encode": {
+        "enter": {
+          "stroke": {"value": "black"},
+          "strokeWidth": {"value": 2}
+        },
+        "update": {
+          "x": {"field": "rule_x"},
+          "y": {"signal": "0"},
+          "x2": {"field": "rule_x"},
+          "y2": {"signal": "height"}
+        }
+      }
+    }
+  ]
+}
+

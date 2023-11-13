@@ -1,0 +1,32 @@
+<head>
+<script src="https://cdn.jsdelivr.net/npm/vega@5.25.0/build/vega.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@4.2.0/build/vega-embed.js"></script>
+</head>
+<body>
+<div id="chart"></div>
+<script type="text/javascript">
+  // @ts-ignore
+var vegaSpec = JSON.parse({{ vega_spec|tojson }});
+var port = {{port}};
+var dataAddress = "http://localhost:" + String(port) + "/data/data.json";
+
+vegaEmbed('#chart', vegaSpec, {"width": window.innerWidth}).then(function (res) {
+  function fetchUpdate() {
+    fetch(dataAddress)
+      .then(res => res.text())
+      .then(text => {
+        json = JSON.parse(text);
+
+        var changeSet = vega
+          .changeset()
+          .remove(vega.truthy)
+          .insert(json)
+        res.view.change("wandb", changeSet).run();
+    });
+  }
+  fetchUpdate()
+  window.setInterval(fetchUpdate, 5000);
+});
+
+</script>
+</body>
