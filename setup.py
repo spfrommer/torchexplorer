@@ -20,13 +20,13 @@ setup(
         'wandb',
         'flask',
         'numpy',
+        'click',
     ],
     extras_require = {
         'dev': [
             'torchvision',
             'lightning',
             'scikit-learn',
-            'click',
             'pytest',
             'pyperclip',
             'mypy',

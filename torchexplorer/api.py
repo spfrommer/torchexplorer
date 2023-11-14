@@ -33,7 +33,8 @@ def watch(
         time_log: tuple[str, Callable] = ('step', lambda module, step: step),
         backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
         standalone_dir: str = './torchexplorer_standalone',
-        standalone_port: int = 5000
+        standalone_port: int = 5000,
+        verbose: bool = True,
     ) -> StructureWrapper:
     """Watch a module and log its structure and histograms to a backend.
 
@@ -64,6 +65,7 @@ def watch(
             matters if the 'standalone' backend is selected.
         standalone_port (int): The port to run the standalone server on. Only matters if
             the 'standalone' backend is selected.
+        verbose (bool): Whether to print out standalone server start message.
     """
 
     if time_log is None:
@@ -79,6 +81,8 @@ def watch(
     wrapper = StructureWrapper()
 
     if backend == 'standalone':
+        if verbose:
+            print(f'Starting TorchExplorer at http://localhost:{standalone_port}')
         _standalone_backend_init(standalone_dir, standalone_port)
 
     hook.hook(
@@ -93,17 +97,14 @@ def watch(
 
     def post_forward_hook(module, __, ___):
         nonlocal step_counter, wrapper
-        if not module.training:
-            return
 
-        if step_counter == 0:
+        if module.training and step_counter == 0:
             step_counter += 1
             wrapper.structure = structure.extract_structure(module)
 
 
     def post_backward_hook(_, __, ___):
-        # This hook is called after we've already backpropagated and called
-        # all the other hooks
+        # This hook is called after we've backprop'd and called all the other hooks
         nonlocal step_counter, wrapper
         step_counter += 1
 
