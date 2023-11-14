@@ -1,4 +1,4 @@
-name: MyPy and PyTest 
+name: CI
 
 on:
   push:
