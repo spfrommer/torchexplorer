@@ -521,7 +521,7 @@
       "on": [
         {
           "events": "mouseup",
-          "update": "if(dragged_node_id < 0, panels_node_id_all, [if(mouseover_panel_id==0, dragged_node_id, panels_node_id_all[0]), if(mouseover_panel_id==1, dragged_node_id, panels_node_id_all[1]), if(mouseover_panel_id==2, dragged_node_id, panels_node_id_all[2]), if(mouseover_panel_id==3, dragged_node_id, panels_node_id_all[3]), if(mouseover_panel_id==4, dragged_node_id, panels_node_id_all[4])])"
+          "update": "if(dragged_node_id < 0, panels_node_id_all, [if(mouseover_panel_id==0, dragged_node_id, if(dragged_node_id==panels_node_id_all[0], -1, panels_node_id_all[0])), if(mouseover_panel_id==1, dragged_node_id, if(dragged_node_id==panels_node_id_all[1], -1, panels_node_id_all[1])), if(mouseover_panel_id==2, dragged_node_id, if(dragged_node_id==panels_node_id_all[2], -1, panels_node_id_all[2])), if(mouseover_panel_id==3, dragged_node_id, if(dragged_node_id==panels_node_id_all[3], -1, panels_node_id_all[3])), if(mouseover_panel_id==4, dragged_node_id, if(dragged_node_id==panels_node_id_all[4], -1, panels_node_id_all[4]))])"
         }
       ]
     },
@@ -1399,4 +1399,3 @@
     }
   ]
 }
-

@@ -13,7 +13,7 @@ vega_source = re.sub(r'"name": "wandb"(.|\n)*?]', '"name": "wandb"', vega_source
 # vega_source = vega_source.replace('[21, 6, 12, 12, 12]', '[-1, -1, -1, -1, -1]')
 vega_source = re.sub(r'panels_node_id_all",[\n\r\s]+"value":\s*\[.*?\]', 'panels_node_id_all", "value": [-1, -1, -1, -1, -1]', vega_source)
 
-with open('vega_upload.json', 'w') as f:
+with open('vega_dataless.json', 'w') as f:
     f.write(vega_source)
 
 pyperclip.copy(vega_source)
