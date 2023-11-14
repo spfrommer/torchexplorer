@@ -41,12 +41,6 @@ sudo apt-get install libgraphviz-dev graphviz
 pip install torchexplorer
 ```
 
-If you want to run the visualization as a standalone app for local training (as opposed to in weights and biases), you should also install `flask`:
-
-```bash
-pip install flask
-```
-
 ### User interface
 **Explorer.** The left-hand panel contains a module-level graph of your network architecture, automatically extracted from the autograd graph. Clicking on a module will open its "internal" submodules. To return to a parent module, click on the appropriate element in the top-left expanding list.
 
