@@ -4,7 +4,7 @@
 
 <div align="center">
 
-  <a href="">![](https://img.shields.io/badge/version-0.2.0-orange)</a>
+  <a href="">![](https://img.shields.io/badge/version-0.2.1-orange)</a>
   <a href="">![](https://github.com/spfrommer/torchexplorer/actions/workflows/main.yml/badge.svg)</a>
 
 </div>
@@ -84,10 +84,11 @@ def watch(
     bins: int = 10,
     sample_n: int = 100,
     reject_outlier_proportion: float = 0,
-    time_log: tuple[str, callable] = ('step', lambda module, step: step),
+    time_log: tuple[str, Callable] = ('step', lambda module, step: step),
     backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
     standalone_dir: str = './torchexplorer_standalone',
-    standalone_port: int = 5000
+    standalone_port: int = 5000,
+    verbose: bool = True,
 ) -> StructureWrapper:
 """Watch a module and log its structure and histograms to a backend.
 
@@ -100,14 +101,14 @@ Args:
         io_grad. This is useful for ignoring classes which do inplace operations,
         which will throw an error.
     disable_inplace (bool): disables the 'inplace' attribute for all activations in
-        the module. 
+        the module.
     bins (int): The number of bins to use for histograms.
     sample_n (int): The number of tensor elements to randomly sample for histograms.
     reject_outlier_proportion (float): The proportion of outliners to reject when
         computing histograms, based on distance to the median. 0.0 means reject
         nothing, 1.0 means reject everything
-    time_log: ([tuple[str, callable]): A tuple of (time_unit, callable) to use for
-        logging. The callable should take in the module and step and return a value
+    time_log: ([tuple[str, Callable]): A tuple of (time_unit, Callable) to use for
+        logging. The allable should take in the module and step and return a value
         to log. The time_unit string is just the axis label on the histogram graph.
         If "module" is a pytorch lightning modules, torchexplorer.LIGHTNING_EPOCHS
         should work to change the time axis to epochs.
@@ -118,6 +119,7 @@ Args:
         matters if the 'standalone' backend is selected.
     standalone_port (int): The port to run the standalone server on. Only matters if
         the 'standalone' backend is selected.
+    verbose (bool): Whether to print out standalone server start message.
 """
 ```
 
