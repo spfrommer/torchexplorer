@@ -4,7 +4,8 @@
 
 <div align="center">
 
-  <a href="">![example1](https://img.shields.io/badge/version-0.2.0-orange)</a>
+  <a href="">![](https://img.shields.io/badge/version-0.2.0-orange)</a>
+  <a href="">![](https://github.com/spfrommer/torchexplorer/actions/workflows/main.yml/badge.svg)</a>
 
 </div>
 
