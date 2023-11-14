@@ -29,6 +29,8 @@ setup(
             'click',
             'pytest',
             'pyperclip',
+            'mypy',
+            'twine',
         ]
     }
 )

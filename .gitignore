@@ -5,6 +5,7 @@ pretrain/
 *.swp
 notes.txt
 setup.sh
+MANIFEST.in
 
 torchexplorer_standalone/
 
