@@ -16,7 +16,7 @@ class NonDiffSubModule(nn.Module):
 
     def forward(self, input_1):
         x = self.fc1(input_1)
-        return torch.round(x).long().float()
+        return torch.round(x).long()
 
 
 class TestModule(nn.Module):
@@ -30,7 +30,8 @@ class TestModule(nn.Module):
         x = self.fc1(x)
         skip = x
         x = self.submodule(x)
-        x = self.fc2(x + skip)
+        x = self.fc2(x.float() + skip)
+        # x = self.fc2(x.float())
         return x
 
 def main():
