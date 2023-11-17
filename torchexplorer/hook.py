@@ -57,7 +57,7 @@ def push_histogram_histories(
                 shared_hists.param_hists[name] = IncrementalHistogram(hist_params)
 
             hist = shared_hists.param_hists[name]
-            hist.update(param)
+            hist.update(param.detach())
         
         if log_params_grad and param is not None and param.grad is not None:
             if name not in shared_hists.param_grad_hists:

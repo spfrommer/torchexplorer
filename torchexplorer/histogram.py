@@ -35,12 +35,14 @@ class IncrementalHistogram:
         bounds of the histogram, the histogram automatically rebins."""
 
         tensor = tensor.flatten()
-        sample_n = min(self.params.sample_n, tensor.shape[0])
-        tensor = tensor[torch.randint(tensor.shape[0], (sample_n,))].float()
+
+        if self.params.sample_n > tensor.shape[0]:
+            indices = torch.randint(tensor.shape[0], (self.params.sample_n,))
+            tensor = tensor[indices].float()
 
         if self.params.reject_outlier_proportion > 0:
             center = tensor.median()
-            reject_n = int(self.params.sample_n * self.params.reject_outlier_proportion)
+            reject_n = int(tensor.shape[0] * self.params.reject_outlier_proportion)
             tensor = tensor[torch.argsort(torch.abs(tensor - center))[:-reject_n]]
 
 
