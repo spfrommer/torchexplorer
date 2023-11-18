@@ -34,11 +34,11 @@ class IncrementalHistogram:
         """Update the histogram with new data. If the new data is outside the current
         bounds of the histogram, the histogram automatically rebins."""
 
-        tensor = tensor.flatten()
+        tensor = tensor.flatten().float()
 
         if self.params.sample_n > tensor.shape[0]:
             indices = torch.randint(tensor.shape[0], (self.params.sample_n,))
-            tensor = tensor[indices].float()
+            tensor = tensor[indices]
 
         if self.params.reject_outlier_proportion > 0:
             center = tensor.median()
