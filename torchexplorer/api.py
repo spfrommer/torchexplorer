@@ -168,9 +168,7 @@ def _wandb_backend_update(renderable: layout.ModuleInvocationRenderable, counter
         string_fields={}
     )
 
-    wandb.log({
-        f'explorer_chart_{counter}': chart
-    })
+    wandb.log({f'explorer_chart_{counter}': chart}, commit=False)
 
 
 def _standalone_backend_init(standalone_dir: str, standalone_port: int):
