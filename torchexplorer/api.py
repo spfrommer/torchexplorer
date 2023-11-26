@@ -126,7 +126,6 @@ def watch(
             renderable = layout.layout(wrapper.structure)
 
             if backend == 'wandb':
-                print(watch_counter_copy)
                 _wandb_backend_update(renderable, watch_counter_copy)
             elif backend == 'standalone':
                 _standalone_backend_update(renderable, standalone_dir)
