@@ -4,7 +4,7 @@
 
 <div align="center">
 
-  <a href="">![](https://img.shields.io/badge/version-0.2.3-orange)</a>
+  <a href="">![](https://img.shields.io/badge/version-0.2.4-orange)</a>
   <a href="">![](https://github.com/spfrommer/torchexplorer/actions/workflows/main.yml/badge.svg)</a>
   <a href="https://github.com/spfrommer/torchexplorer/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green.svg" alt="license badge"></a>
 
