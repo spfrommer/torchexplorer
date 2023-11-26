@@ -15,27 +15,36 @@ jobs:
       matrix:
         python-version: [3.10.12]
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout
       uses: actions/checkout@v3
       
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get install graphviz libgraphviz-dev
-        python -m pip install --upgrade pip
-        python -m pip install -e .[dev]
         
-    - name: Static type check
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3.2.4
+      id: cache
+      with:
+        path: ${{ env.pythonLocation }}
+        key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}
+    
+    - name: Install Python dependencies
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        pip install '.[dev]'
+    
+    - name: MyPy (static type check)
       run: |
         mypy -p torchexplorer --disable-error-code=import-untyped
     
-    - name: Test with pytest
+    - name: PyTest (local tests)
       if: always()
       run: |
         python -m pytest tests/integration/local.py
