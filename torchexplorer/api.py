@@ -21,6 +21,8 @@ class StructureWrapper:
 LIGHTNING_EPOCHS = ('epoch', lambda module, step: module.current_epoch)
 
 
+watch_counter = 0
+
 def watch(
         module: nn.Module,
         log: list[str] = ['io', 'io_grad', 'params', 'params_grad'],
@@ -68,6 +70,8 @@ def watch(
         verbose (bool): Whether to print out standalone server start message.
     """
 
+    global watch_counter
+
     if time_log is None:
         time_log = ('step', lambda module, step: step)
     time_name, time_fn = time_log
@@ -102,6 +106,9 @@ def watch(
             wrapper.structure = structure.extract_structure(module)
 
 
+    # Make sure that the backward hook is getting the watch counter from when the
+    # specific watch() was called, not the last watch
+    watch_counter_copy = watch_counter
     def post_backward_hook(_, __, ___):
         # This hook is called after we've backprop'd and called all the other hooks
         nonlocal step_counter, wrapper
@@ -119,7 +126,8 @@ def watch(
             renderable = layout.layout(wrapper.structure)
 
             if backend == 'wandb':
-                _wandb_backend_update(renderable)
+                print(watch_counter_copy)
+                _wandb_backend_update(renderable, watch_counter_copy)
             elif backend == 'standalone':
                 _standalone_backend_update(renderable, standalone_dir)
 
@@ -127,10 +135,12 @@ def watch(
     module.register_forward_hook(post_forward_hook)
     module.register_full_backward_hook(post_backward_hook)
 
+    watch_counter += 1
+
     return wrapper
 
 
-def _wandb_backend_update(renderable: layout.ModuleInvocationRenderable):
+def _wandb_backend_update(renderable: layout.ModuleInvocationRenderable, counter: int):
     if wandb.run is None:
         raise ValueError("Call `wandb.init` before torchexplorer.watch")
 
@@ -142,9 +152,10 @@ def _wandb_backend_update(renderable: layout.ModuleInvocationRenderable):
         fields=fields,
         string_fields={}
     )
+
     wandb.log({
-        'explorer_table': explorer_table,
-        'explorer_chart': chart
+        f'explorer_table_{counter}': explorer_table,
+        f'explorer_chart_{counter}': chart
     })
 
 
