@@ -98,8 +98,7 @@ def watch(
     def post_forward_hook(module, __, ___):
         nonlocal step_counter, wrapper
 
-        if module.training and step_counter == 0:
-            step_counter += 1
+        if module.training and (wrapper.structure is None):
             wrapper.structure = structure.extract_structure(module)
 
 
