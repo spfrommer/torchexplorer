@@ -4,6 +4,7 @@ pretrain/
 .vscode/
 *.swp
 notes.txt
+deploy.py
 setup.sh
 MANIFEST.in
 
