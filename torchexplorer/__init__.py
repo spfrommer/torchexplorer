@@ -1,1 +1,1 @@
-from torchexplorer.api import watch, LIGHTNING_EPOCHS, StructureWrapper
+from torchexplorer.api import setup, watch, LIGHTNING_EPOCHS, StructureWrapper

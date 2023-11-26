@@ -25,6 +25,9 @@
 Curious about what's happening in your network? TorchExplorer is a simple tool that allows you to interactively inspect the inputs, outputs, parameters, and gradients for each `nn.Module` in your network. It integrates with [weights and biases](https://wandb.ai/site) and can also operate locally as a standalone solution. If your use case fits (see limitations below), it's very simple to try:
 
 ```python
+torchexplorer.setup()
+wandb.init()
+
 model = ...
 
 torchexplorer.watch(model, backend='wandb') # Or 'standalone'
@@ -71,15 +74,17 @@ _Parameter histograms._ After the input/output histograms are extracted, all sub
 
 _Parameter gradient histograms._ After the `backward` call is completed, each parameter will have a `.grad` attribute storing the gradient of the loss with respect to that parameter. This tensor is directly passed to the histogram. Unlike the input/output gradients, no norms are computed.
 
-## API 
+## API
 
-The api surface is just one function call, inspired by wandb's [watch](https://docs.wandb.ai/ref/python/watch).
+For wandb training, make sure to call `torchexplorer.setup()` before `wandb.init()`. This will configure subprocess open file limits to work around some wandb limitations.
+
+Then the main api surface is just one function call, inspired by wandb's [watch](https://docs.wandb.ai/ref/python/watch).
 
 ```python
 def watch(
     module: nn.Module,
     log: list[str] = ['io', 'io_grad', 'params', 'params_grad'],
-    log_freq: int = 100,
+    log_freq: int = 500,
     ignore_io_grad_classes: list[type] = [],
     disable_inplace: bool = False,
     bins: int = 10,
@@ -177,7 +182,6 @@ RuntimeError: Output 0 of BackwardHookFunctionBackward is a view and is being mo
 
 This indicates that an inplace operation is occurring somewhere in the computational graph, which messes with the input/output gradient capturing (`io_grad`) feature. This commonly comes from inplace activations (e.g. `nn.ReLU(inplace=True)`), or residual inplace additions (e.g. `out += identity`). If you don't care about gradients you can just omit `'io_grad'` in `log` argument to the `watch` function. Otherwise, there are two additional tools available. You can use the `disable_inplace` argument to automatically turn off the `inplace` flag on all activations. If this still doesn't cut it, you must figure out what submodules are doing inplace operations and either manually fix them or pass those classes to the `ignore_io_grad_classes` argument. For example, the `BasicBlock` in the torchvision resnet implementation has an inplace residual connection. So we would do the following:
 
-
 ```python
 model = torchvision.models.resnet18(pretrained=False)
 watch(
@@ -187,22 +191,31 @@ watch(
 )
 ```
 
-
 **2. Weights and biases chart glitches**
 ```
 "No data available." in the Custom Chart.
 ```
 
-This occasionally shows up for me in the weights and biases interface and seems to be a difficult-to-reproduce bug in their custom charts support. Sometimes waiting fixes it. If possible, just restarting training when you notice this.
+This occasionally shows up for me in the weights and biases interface and seems to be a difficult-to-reproduce bug in their custom charts support. Sometimes waiting fixes it. If possible, just restarting training when you notice this. Also, make sure that your browser is up-to-date. Updating Chrome to the latest version fixed this for me completely.
 
 ```
 "Something went wrong..." and Google Chrome crashes.
 ```
 
-It happens occasionally that the wandb website crashes with torchexplorer active. Reloading the page seems to always work.
+It happens occasionally that the wandb website crashes with torchexplorer active. Reloading the page seems to always work. Again, this was completely fixed for me when I updated Chrome to the latest version.
 
 **3. Graphviz overflow errors**
 ```
 "Trapezoid overflow" error in the graphviz call.
 ```
+
 This is a [known bug](https://github.com/ellson/MOTHBALLED-graphviz/issues/56) in Graphviz 2.42.2, an ancient version which is still the default on most package managers. If you're getting this error, you can fix it by installing a [newer release](https://gitlab.com/graphviz/graphviz/-/releases).
+
+**4. Too many open files**
+```
+OSError: [Errno 24] Too many open files: b'/proc'
+...
+wandb: WARNING Failed to cache... too many open files
+```
+
+This is a [known bug](https://github.com/wandb/wandb/issues/2825) in wandb when uploading many tables. The only workaround I have for now is to modify the `ulimit` from the default of `1024` to `50000` by calling `torchexplorer.setup()` before `wandb.init()`. You can also try increasing `log_freq` so that fewer tables are logged. If you're still getting issues, you might have to edit `/etc/security/limits.conf` as [described here](https://unix.stackexchange.com/a/691947).

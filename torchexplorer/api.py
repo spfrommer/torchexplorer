@@ -21,12 +21,28 @@ class StructureWrapper:
 LIGHTNING_EPOCHS = ('epoch', lambda module, step: module.current_epoch)
 
 
+def setup(ulimit=50000):
+    """Bump the open file limit. Must be called before wandb.init().
+    
+    This is a necessary workaround for long wandb training runs (see README common
+    errors #4).
+    
+    Args:
+        ulimit (int): The new open file limit.
+    """
+    if wandb.run is not None:
+        raise ValueError('Call `torchexplorer.setup()` before `wandb.init()`')
+
+    import resource
+    resource.setrlimit(resource.RLIMIT_NOFILE, (ulimit, ulimit))
+
+
 watch_counter = 0
 
 def watch(
         module: nn.Module,
         log: list[str] = ['io', 'io_grad', 'params', 'params_grad'],
-        log_freq: int = 100,
+        log_freq: int = 500,
         ignore_io_grad_classes: list[type] = [],
         disable_inplace: bool = False,
         bins: int = 10,
@@ -141,7 +157,7 @@ def watch(
 
 def _wandb_backend_update(renderable: layout.ModuleInvocationRenderable, counter: int):
     if wandb.run is None:
-        raise ValueError("Call `wandb.init` before torchexplorer.watch")
+        raise ValueError('Call `wandb.init` before `torchexplorer.watch`')
 
     explorer_table, fields = layout.wandb_table(renderable)
 
@@ -153,7 +169,6 @@ def _wandb_backend_update(renderable: layout.ModuleInvocationRenderable, counter
     )
 
     wandb.log({
-        f'explorer_table_{counter}': explorer_table,
         f'explorer_chart_{counter}': chart
     })
 
