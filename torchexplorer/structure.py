@@ -15,7 +15,7 @@ config = {
     ]
 }
 logger.configure(**config)
-# logger.disable("torchexplorer")
+logger.disable("torchexplorer")
 
 log_indent_level = 0
 def log(extract_level: str, class_name: str, message: str):
@@ -62,7 +62,9 @@ def extract_structure(
     log_args = ['OUTER', module.__class__.__name__]
     log(*log_args, 'Start extracting structure')
 
-    structure = ModuleInvocationStructure(module, invocation_id)
+    input_n = len(module.torchexplorer_metadata.input_gradfns[invocation_id])
+    output_n = len(module.torchexplorer_metadata.output_gradfns[invocation_id])
+    structure = ModuleInvocationStructure(module, invocation_id, input_n, output_n)
     structure.upstreams_fetched = False
 
 
@@ -76,10 +78,6 @@ def extract_structure(
             node=node_name, input_index=i, gradfn=output_gradfn
         ))
 
-        structure.inner_graph.add_node(
-            node_name, memory_id=None, label=node_name, tooltip=node_name
-        )
-
     i = 0
     while i < len(downstreams):
         downstream = downstreams[i]
@@ -92,14 +90,6 @@ def extract_structure(
         log(*log_args, f'Done inner recurse, got {len(upstreams)} upstreams')
 
         for upstream in upstreams:
-            if is_input_node(upstream.node):
-                node_name = str(upstream.node)
-                structure.inner_graph.add_node(
-                    node_name, memory_id=None, label=node_name, tooltip=node_name
-                )
-
-                log(*log_args, f'Adding input node {node_name}')
-
             assert structure.inner_graph.has_node(upstream.node)
             assert structure.inner_graph.has_node(downstream.node)
 

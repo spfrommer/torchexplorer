@@ -339,8 +339,8 @@ def _nondiff_structure() -> tuple[nn.Module, ModuleInvocationStructure]:
 def test_vqvae_structure():
     model, structure = _vqvae_structure()
 
-    assert len(structure.inner_graph.nodes) == 6
-    assert len(structure.inner_graph.edges) == 6
+    assert len(structure.inner_graph.nodes) == 8
+    assert len(structure.inner_graph.edges) == 7
 
 
 def _vqvae_structure() -> tuple[nn.Module, ModuleInvocationStructure]:

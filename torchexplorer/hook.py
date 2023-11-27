@@ -95,7 +95,6 @@ def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
         return tensor + dummy_tensor if torch.is_floating_point(tensor) else tensor
     return tuple(process_tensor(tensor) for tensor in tensors)
 
-
 def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
     def gradfns_tensors(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
         def process_tensor(tensor: OTensor):
@@ -108,11 +107,6 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
     def gradfns_next(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
         # Hacky workaround, couldn't figure out import
         # Check if all gradfns are the same 'BackwardHookFunctionBackward'
-        # first_level_gradfns = gradfns_tensors(tensors)
-        # all_gradfns_same = len(set(first_level_gradfns)) == 1
-        # first_backwardhook = 'BackwardHookFunctionBackward' in str(tensors[0].grad_fn)
-
-        # if all_gradfns_same and first_backwardhook and (len(tensors) > 1):
         if 'BackwardHookFunctionBackward' in str(tensors[0].grad_fn):
             # Multiple inputs will share a BackwardHookFunctionBackward gradfn.
             # To tease apart multiple input nodes in the explorer, we need to go

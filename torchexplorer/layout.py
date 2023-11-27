@@ -66,7 +66,7 @@ def _layout_into(
     if not hasattr(structure, 'inner_graph'):
         return
 
-    # _preprocess_io_names(structure)
+    _preprocess_io_names(structure)
     json_data = _get_graphviz_json(structure)
 
     for object in json_data['objects']:
@@ -151,14 +151,16 @@ def _translate_object_nodes_and_edges(
     target_input_pos = [0, 0]
     trans = None
 
+    input_centers = []
     for renderable in renderables:
-        if renderable.display_name in ['Input', 'Input 0']:
-            center = [
+        if is_input_node(renderable.display_name):
+            input_centers.append(np.array([
                 (renderable.bottom_left_corner[0] + renderable.top_right_corner[0]) / 2,
                 (renderable.bottom_left_corner[1] + renderable.top_right_corner[1]) / 2,
-            ]
+            ]))
 
-            trans = [target_input_pos[0] - center[0], target_input_pos[1] - center[1]]
+    center = np.mean(np.array(input_centers), axis=0)
+    trans = [target_input_pos[0] - center[0], target_input_pos[1] - center[1]]
     
     assert trans is not None
 

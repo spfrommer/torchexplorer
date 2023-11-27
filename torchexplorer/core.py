@@ -57,12 +57,26 @@ class ModuleInvocationStructure():
     There can be multiple of these for a particular module if that module's forward
     method is invoked multiple times on the forwards pass of a parent."""
 
-    def __init__(self, module: nn.Module, invocation_id: InvocationId):
+    def __init__(
+            self,
+            module: nn.Module,
+            invocation_id: InvocationId,
+            input_n: int,
+            output_n: int
+        ):
         self.module = module
         self.invocation_id = invocation_id
 
         # Nodes are either 'Input x'/'Output x' strings or ModuleInvocationStructures
         self.inner_graph = nx.DiGraph()
+
+        for i in range(input_n):
+            name = f'Input {i}'
+            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip=name)
+        
+        for i in range(output_n):
+            name = f'Output {i}'
+            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip=name)
 
         self.upstreams_fetched = False
 
