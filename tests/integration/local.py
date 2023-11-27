@@ -10,6 +10,7 @@ from torchexplorer.core import (
 )
 
 import infra
+from vqvae import VQVAEModel
 
 
 log_all = ['io', 'io_grad', 'params', 'params_grad'] 
@@ -329,6 +330,33 @@ def _nondiff_structure() -> tuple[nn.Module, ModuleInvocationStructure]:
 
     wrapper: StructureWrapper = watch(model, log_freq=1, backend='none')
     infra.run_trial(model, X, y, steps=15)
+
+    structure: ModuleInvocationStructure = wrapper.structure
+
+    return model, structure
+
+
+
+def test_vqvae_structure():
+    model, structure = _vqvae_structure()
+
+    assert len(structure.inner_graph.nodes) == 6
+    assert len(structure.inner_graph.edges) == 6
+
+
+def _vqvae_structure() -> tuple[nn.Module, ModuleInvocationStructure]:
+    X = torch.randn(5, 3, 32, 32)
+    y = torch.randn(5, 3, 32, 32)
+
+    model = VQVAEModel(
+        num_hiddens=128, num_residual_layers=2, num_residual_hiddens=32,
+        num_embeddings=512, embedding_dim=64, commitment_cost=0.25
+    )
+
+    wrapper: StructureWrapper = watch(
+        model, log_freq=1, backend='none', disable_inplace=True
+    )
+    infra.run_trial(model, X, y, steps=15, pick_yhat=1)
 
     structure: ModuleInvocationStructure = wrapper.structure
 

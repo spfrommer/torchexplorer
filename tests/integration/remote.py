@@ -10,6 +10,7 @@ from torch import nn
 from torchexplorer import watch
 
 import infra
+from vqvae import VQVAEModel
 
 
 wandb_init_params = {
@@ -72,7 +73,6 @@ def test_resnet():
     wandb.finish()
 
 
-
 def test_transformer_encoder():
     X = torch.rand(10, 32, 512)
     y = torch.randn(10, 32, 512)
@@ -83,4 +83,19 @@ def test_transformer_encoder():
     wandb.init(**wandb_init_params, name='transformer')
     watch(model, log_freq=1, backend='wandb')
     infra.run_trial(model, X, y, steps=15)
+    wandb.finish()
+
+
+def test_vqvae():
+    X = torch.randn(5, 3, 32, 32)
+    y = torch.randn(5, 3, 32, 32)
+
+    model = VQVAEModel(
+        num_hiddens=128, num_residual_layers=2, num_residual_hiddens=32,
+        num_embeddings=512, embedding_dim=64, commitment_cost=0.25
+    )
+
+    wandb.init(**wandb_init_params, name='vqvae')
+    watch(model, log_freq=1, backend='wandb', disable_inplace=True)
+    infra.run_trial(model, X, y, steps=15, pick_yhat=1)
     wandb.finish()
