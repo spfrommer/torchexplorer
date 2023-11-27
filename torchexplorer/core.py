@@ -63,11 +63,15 @@ class ModuleInvocationStructure():
             self,
             module: nn.Module,
             invocation_id: InvocationId,
+            structure_id: int,
             input_n: int,
             output_n: int
         ):
+
         self.module = module
         self.invocation_id = invocation_id
+        # A unique id for this structure, to enable caching of graphviz calls
+        self.structure_id = structure_id
 
         # Nodes are either 'Input x'/'Output x' strings or ModuleInvocationStructures
         self.inner_graph = nx.DiGraph()
@@ -81,6 +85,8 @@ class ModuleInvocationStructure():
             self.inner_graph.add_node(name, memory_id=None, label=name, tooltip=name)
 
         self.upstreams_fetched = False
+
+        self.graphviz_json_cache = None
 
     def module_metadata(self) -> ExplorerMetadata:
         return self.module.torchexplorer_metadata
@@ -98,6 +104,12 @@ class ModuleInvocationStructure():
         ) -> Optional['ModuleInvocationStructure']:
 
         return self._inner_filter(lambda node: id(node) == memory_id)
+
+    def get_inner_structure_from_structure_id(
+            self, structure_id: int
+        ) -> Optional['ModuleInvocationStructure']:
+
+        return self._inner_filter(lambda node: node.structure_id == structure_id)
 
     def _inner_filter(self, test_fn: Callable) -> Optional['ModuleInvocationStructure']:
         for node in self.inner_graph.nodes:

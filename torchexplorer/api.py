@@ -127,9 +127,10 @@ def watch(
     # Make sure that the backward hook is getting the watch counter from when the
     # specific watch() was called, not the last watch
     watch_counter_copy = watch_counter
+    layout_cache = None
     def post_backward_hook(_, __, ___):
         # This hook is called after we've backprop'd and called all the other hooks
-        nonlocal step_counter, wrapper
+        nonlocal step_counter, wrapper, layout_cache
         step_counter += 1
 
         if should_log_callable():
@@ -141,7 +142,7 @@ def watch(
                 log_params='params' in log,
                 log_params_grad='params_grad' in log
             )
-            renderable = layout.layout(wrapper.structure)
+            renderable, layout_cache = layout.layout(wrapper.structure, layout_cache)
 
             if backend == 'wandb':
                 _wandb_backend_update(renderable, watch_counter_copy)

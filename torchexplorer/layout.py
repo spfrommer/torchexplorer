@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 
 import json
 from typing import Optional
@@ -45,6 +46,7 @@ class ModuleInvocationRenderable:
     inner_graph_edges: list[OrthoEdge] = field(default_factory=lambda: [])
 
     # Data added in the _process_graph function, after everything has been layed out
+    # These ids are not related to the structure_id of the ModuleInvocationStructure
     id: Optional[int] = None
     parent_id: Optional[int] = None
     # Parent stack includes current renderable (this goes into the parents view in vega)
@@ -52,24 +54,57 @@ class ModuleInvocationRenderable:
     child_ids: Optional[list[int]] = None
 
 
-def layout(structure: ModuleInvocationStructure) -> ModuleInvocationRenderable:
+def layout(
+        structure: ModuleInvocationStructure, cache: Optional[dict] = None
+    ) -> tuple[ModuleInvocationRenderable, dict]:
+
     name = structure.module.__class__.__name__
     if is_input_node(name) or is_output_node(name):
         raise RuntimeError(f'Invalid module name: {name}')
     renderable = ModuleInvocationRenderable(display_name=name)
-    _layout_into(renderable, structure)
+
+    if cache is None:
+        _layout_into(renderable, structure, None)
+        cache = {'cached_structure': structure}
+    else:
+        _layout_into(renderable, structure, cache['cached_structure'])
+
     _process_graph(renderable)
-    return renderable
+    return renderable, cache
 
 def _layout_into(
-        renderable: ModuleInvocationRenderable, structure: ModuleInvocationStructure
+        renderable: ModuleInvocationRenderable,
+        structure: ModuleInvocationStructure,
+        cached_structure: Optional[ModuleInvocationStructure] = None
     ):
 
     if not hasattr(structure, 'inner_graph'):
         return
 
     _preprocess_io_names(structure)
-    json_data = _get_graphviz_json(structure)
+
+    if cached_structure is not None:
+        json_data = copy.deepcopy(cached_structure.graphviz_json_cache)
+        for object in json_data['objects']:
+            if (is_input_node(object['label']) or is_output_node(object['label'])):
+                continue
+
+            old_mem_id = int(object['memory_id'])
+            old_struct = cached_structure.get_inner_structure_from_memory_id(old_mem_id)
+            assert old_struct is not None
+            new_struct = structure.get_inner_structure_from_structure_id(
+                old_struct.structure_id
+            )
+            assert new_struct is not None
+            object['memory_id'] = id(new_struct)
+            object['cached_structure'] = old_struct
+    else:
+        json_data = _get_graphviz_json(structure)
+        structure.graphviz_json_cache = json_data
+
+        for object in json_data['objects']:
+            object['cached_structure'] = None
+
 
     for object in json_data['objects']:
         draw_points = np.array(object['_draw_'][1]['points'])
@@ -98,7 +133,7 @@ def _layout_into(
                 )
             inner_renderable.shared_hists = metadata.shared_hists
 
-            _layout_into(inner_renderable, object_struct)
+            _layout_into(inner_renderable, object_struct, object['cached_structure'])
 
         renderable.inner_graph_renderables.append(inner_renderable)
     
