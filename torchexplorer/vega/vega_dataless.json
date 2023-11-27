@@ -72,7 +72,7 @@
         {
           "type": "formula",
           "as": "interactive",
-          "expr": "datum.display_name != 'Input' && datum.display_name != 'Output'"
+          "expr": "datum.display_name != 'Input' && indexof(datum.display_name, 'Input ') != 0 && datum.display_name != 'Output' && indexof(datum.display_name, 'Output ') != 0"
         }
       ]
     },
