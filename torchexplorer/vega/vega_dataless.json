@@ -470,6 +470,24 @@
           "expr": "explorer_width + panel_width * datum.panel_id"
         }
       ]
+    },
+    { "name": "workspace_multirun_detector",
+      "source": "nodes",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum.id == 0"
+        },
+        {
+          "type": "aggregate",
+          "ops": ["count"],
+          "as": ["num_roots"]
+        },
+        {
+          "type": "filter",
+          "expr": "datum.num_roots > 1"
+        }
+      ]
     }
   ],
 
@@ -1394,6 +1412,39 @@
           "y": {"signal": "0"},
           "x2": {"field": "rule_x"},
           "y2": {"signal": "height"}
+        }
+      }
+    },
+    { "name": "workspace_multirun_rect",
+      "type": "rect",
+      "from": {"data": "workspace_multirun_detector"},
+      "zindex": 20,
+      "encode": {
+        "update": {
+          "fill": {"signal": "neutral_color"},
+          "x": {"value": -5},
+          "y": {"value": -5},
+          "x2": {"signal": "width+10"},
+          "y2": {"signal": "height+10"}
+        }
+      }
+    },
+    { "name": "workspace_multirun_text",
+      "type": "text",
+      "from": {"data": "workspace_multirun_detector"},
+      "zindex": 21,
+      "encode": {
+        "enter": {
+          "fill": {"value": "#777"},
+          "text": {"value": ["Cannot view model in wandb", "workspace with multiple runs selected.", "Please open a specific run."]}
+        },
+        "update": {
+          "x": {"signal": "width / 2"},
+          "y": {"signal": "height / 2 - 20"},
+          "align": {"value": "center"},
+          "baseline": {"value": "middle"},
+          "font": {"value": "sans-serif"},
+          "fontSize": {"value": 18}
         }
       }
     }
