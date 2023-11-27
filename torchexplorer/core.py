@@ -86,7 +86,7 @@ class ModuleInvocationStructure():
 
         self.upstreams_fetched = False
 
-        self.graphviz_json_cache = None
+        self.graphviz_json_cache: Optional[dict] = None
 
     def module_metadata(self) -> ExplorerMetadata:
         return self.module.torchexplorer_metadata

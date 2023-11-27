@@ -26,7 +26,7 @@
 Curious about what's happening in your network? TorchExplorer is a simple tool that allows you to interactively inspect the inputs, outputs, parameters, and gradients for each `nn.Module` in your network. It integrates with [weights and biases](https://wandb.ai/site) and can also operate locally as a standalone solution. If your use case fits (see limitations below), it's very simple to try:
 
 ```python
-torchexplorer.setup()
+torchexplorer.setup() # Call once before wandb.init(), not needed for standalone
 wandb.init()
 
 model = ...

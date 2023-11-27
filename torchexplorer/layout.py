@@ -85,6 +85,7 @@ def _layout_into(
 
     if cached_structure is not None:
         json_data = copy.deepcopy(cached_structure.graphviz_json_cache)
+        assert json_data is not None
         for object in json_data['objects']:
             if (is_input_node(object['label']) or is_output_node(object['label'])):
                 continue
