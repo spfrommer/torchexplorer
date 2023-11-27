@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from torch import nn
 
 import re
@@ -8,12 +10,7 @@ from dataclasses import dataclass
 import sys
 from loguru import logger
 
-config = {
-    'handlers': [
-        { 'sink': sys.stderr, 'format': '{message}', 'level': 'DEBUG' },
-        { 'sink': 'log.log', 'format': '{message}', 'level': 'DEBUG' },
-    ]
-}
+config = {'handlers': [{ 'sink': sys.stderr, 'format': '{message}', 'level': 'DEBUG' }]}
 logger.configure(**config)  # type: ignore
 logger.disable("torchexplorer")
 

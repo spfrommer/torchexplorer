@@ -1,5 +1,7 @@
 """Copies a mock wandb data string to the clipboard for testing purposes."""
 
+from __future__ import annotations
+
 import json
 import torch
 from torch import optim
@@ -74,6 +76,8 @@ def main():
         return string.replace('\n', '\n      ')
 
     pyperclip.copy(custom_json(rendered_layout))
+
+    print('Copied to clipboard. Paste into the vega editor in the "wandb" data.')
 
 # Adapted from:
 # https://gist.github.com/jannismain/e96666ca4f059c3e5bc28abb711b5c92

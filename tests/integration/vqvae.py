@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Adapted from: https://github.com/zalandoresearch/pytorch-vq-vae/blob/master/vq-vae.ipynb
 
 import torch

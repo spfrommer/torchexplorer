@@ -1,5 +1,7 @@
 """Processes the vega_raw.json copied from the vega editor into a vega spec ready for deployment."""
 
+from __future__ import annotations
+
 import pyperclip
 import re
 
@@ -17,3 +19,5 @@ with open('vega_dataless.json', 'w') as f:
     f.write(vega_source)
 
 pyperclip.copy(vega_source)
+
+print('Copied to clipboard. Paste into the wandb editor and make a new version.')
