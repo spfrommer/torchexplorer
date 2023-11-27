@@ -107,11 +107,14 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
     def gradfns_next(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
         # Hacky workaround, couldn't figure out import
         # Check if all gradfns are the same 'BackwardHookFunctionBackward'
-        if 'BackwardHookFunctionBackward' in str(tensors[0].grad_fn):
+        if (
+            tensors[0] is not None and
+            'BackwardHookFunctionBackward' in str(tensors[0].grad_fn)
+        ):
             # Multiple inputs will share a BackwardHookFunctionBackward gradfn.
             # To tease apart multiple input nodes in the explorer, we need to go
             # one level deeper.
-            return tuple(f[0] for f in tensors[0].grad_fn.next_functions)
+            return tuple(f[0] for f in tensors[0].grad_fn.next_functions) # type: ignore
 
         return gradfns_tensors(tensors)
 
