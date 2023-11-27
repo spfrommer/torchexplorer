@@ -150,6 +150,7 @@ class TestModule(nn.Module):
         return x  
 ```
 2. Nondifferentiable operations which break the autograd graph are permissible and should not cause a crash. However, the resulting module-level graph will be correspondingly disconnected.
+3. Multiple inputs and outputs will display correctly (i.e., "Input 0", "Input 1", ...)
 
 ### Unsupported
 
