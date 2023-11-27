@@ -11,6 +11,7 @@ import wandb
 from torchexplorer.core import (
     ModuleInvocationHistograms, ModuleInvocationStructure, ModuleSharedHistograms
 )
+from torchexplorer.structure import is_input_node, is_output_node
 from torchexplorer.histogram import IncrementalHistogram
 
 
@@ -51,6 +52,8 @@ class ModuleInvocationRenderable:
 
 def layout(structure: ModuleInvocationStructure) -> ModuleInvocationRenderable:
     name = structure.module.__class__.__name__
+    if is_input_node(name) or is_output_node(name):
+        raise RuntimeError(f'Invalid module name: {name}')
     renderable = ModuleInvocationRenderable(display_name=name)
     _layout_into(renderable, structure)
     _process_graph(renderable)
@@ -63,6 +66,7 @@ def _layout_into(
     if not hasattr(structure, 'inner_graph'):
         return
 
+    # _preprocess_io_names(structure)
     json_data = _get_graphviz_json(structure)
 
     for object in json_data['objects']:
@@ -75,7 +79,7 @@ def _layout_into(
         inner_renderable.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
         inner_renderable.top_right_corner = [draw_xs.max(), draw_ys.max()]
 
-        if object['label'] not in ['Input', 'Output']:
+        if not (is_input_node(object['label']) or is_output_node(object['label'])):
             memory_id = int(object['memory_id'])
             object_struct = structure.get_inner_structure_from_memory_id(memory_id)
             assert object_struct is not None
@@ -148,14 +152,14 @@ def _translate_object_nodes_and_edges(
     trans = None
 
     for renderable in renderables:
-        if renderable.display_name == 'Input':
+        if renderable.display_name in ['Input', 'Input 0']:
             center = [
                 (renderable.bottom_left_corner[0] + renderable.top_right_corner[0]) / 2,
                 (renderable.bottom_left_corner[1] + renderable.top_right_corner[1]) / 2,
             ]
 
             trans = [target_input_pos[0] - center[0], target_input_pos[1] - center[1]]
-
+    
     assert trans is not None
 
     for renderable in renderables:
@@ -171,6 +175,18 @@ def _translate_object_nodes_and_edges(
         edge.arrowhead_points = [
             [p[0] + trans[0], p[1] + trans[1]] for p in edge.arrowhead_points
         ]
+
+def _preprocess_io_names(structure: ModuleInvocationStructure) -> None:
+    multiple_inputs = structure.inner_graph.has_node('Input 1')
+    multiple_outputs = structure.inner_graph.has_node('Output 1')
+
+    if not multiple_inputs:
+        new_attributes = {'Input 0': {'label': 'Input', 'tooltip': 'Input'}}
+        nx.set_node_attributes(structure.inner_graph, new_attributes)
+    
+    if not multiple_outputs:
+        new_attributes = {'Output 0': {'label': 'Output', 'tooltip': 'Output'}}
+        nx.set_node_attributes(structure.inner_graph, new_attributes)
 
 def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> dict:
     # Graphviz carries through the node attributes from structure.py to the JSON 

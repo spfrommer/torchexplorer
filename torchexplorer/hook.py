@@ -88,31 +88,54 @@ def push_histogram_histories(
         push_histogram_histories(child, hist_params, time, log_params, log_params_grad)
 
 def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
-    dummy_tensor = torch.tensor(0.0, requires_grad=True)
     def process_tensor(tensor: OTensor) -> OTensor:
         if tensor is None:
             return None
+        dummy_tensor = torch.tensor(0.0, requires_grad=True)
         return tensor + dummy_tensor if torch.is_floating_point(tensor) else tensor
     return tuple(process_tensor(tensor) for tensor in tensors)
 
 
 def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
-    def gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
+    def gradfns_tensors(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
         def process_tensor(tensor: OTensor):
             if tensor is None or not tensor.requires_grad:
                 return None
             return tensor.grad_fn
 
         return tuple(process_tensor(tensor) for tensor in tensors)
+    
+    def gradfns_next(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
+        # Hacky workaround, couldn't figure out import
+        # Check if all gradfns are the same 'BackwardHookFunctionBackward'
+        # first_level_gradfns = gradfns_tensors(tensors)
+        # all_gradfns_same = len(set(first_level_gradfns)) == 1
+        # first_backwardhook = 'BackwardHookFunctionBackward' in str(tensors[0].grad_fn)
+
+        # if all_gradfns_same and first_backwardhook and (len(tensors) > 1):
+        if 'BackwardHookFunctionBackward' in str(tensors[0].grad_fn):
+            # Multiple inputs will share a BackwardHookFunctionBackward gradfn.
+            # To tease apart multiple input nodes in the explorer, we need to go
+            # one level deeper.
+            return tuple(f[0] for f in tensors[0].grad_fn.next_functions)
+
+        return gradfns_tensors(tensors)
 
     def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
         if not should_log_callable():
             return
+        
+        # In case an input is passed directly to a submodule
+        # Honestly nto really sure why it's necessary but it is
+        inputs = _add_dummy(inputs)
 
         metadata: ExplorerMetadata = module.torchexplorer_metadata
-        metadata.input_gradfns[metadata.forward_invocation_counter] = gradfns(inputs)
+        input_gradfns = gradfns_next(inputs)
+        metadata.input_gradfns[metadata.forward_invocation_counter] = input_gradfns
         metadata.forward_invocation_counter += 1
 
+        # Add a graph "spacer" so that we have different gradfns for stopping an outer
+        # recursion and starting an inner recursion.
         return _add_dummy(inputs)
 
     def post_hook(
@@ -129,22 +152,31 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
         metadata: ExplorerMetadata = module.torchexplorer_metadata
         invocation_id = metadata.forward_invocation_counter - 1
         assert invocation_id >= 0
-        metadata.output_gradfns[invocation_id] = gradfns(outputs_tuple)
 
+        # Just in case an input is passed directly through to an output
         outputs_tuple = _add_dummy(outputs_tuple)
 
-        for tensors, index_name in [
-            (inputs, 'input_index'), (outputs_tuple, 'output_index')
+        # These gradfns are used to recurse inside the module. So we record them
+        # before adding a dummy operation to the graph.
+        metadata.output_gradfns[invocation_id] = gradfns_tensors(outputs_tuple)
+        
+        # Add a graph "spacer" so that we have different gradfns for stopping an outer
+        # recursion and starting an inner recursion.
+        outputs_tuple = _add_dummy(outputs_tuple)
+
+        for io_gradfns, index_name in [
+            (gradfns_next(inputs), 'input_index'),
+            (gradfns_tensors(outputs_tuple), 'output_index')
         ]:
-            for i, tensor in enumerate(tensors):
-                if tensor is None or tensor.grad_fn is None:
+            for i, gradfn in enumerate(io_gradfns):
+                if gradfn is None:
                     continue
 
-                assert isinstance(tensor.grad_fn.metadata, dict)
+                assert isinstance(gradfn.metadata, dict)
 
-                tensor.grad_fn.metadata['module'] = module
-                tensor.grad_fn.metadata[index_name] = i
-                tensor.grad_fn.metadata['invocation_id'] = invocation_id
+                gradfn.metadata['module'] = module
+                gradfn.metadata[index_name] = i
+                gradfn.metadata['invocation_id'] = invocation_id
 
         return outputs_tuple[0] if single_output else outputs_tuple
 

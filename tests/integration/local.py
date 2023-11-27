@@ -224,7 +224,6 @@ def test_inplace_structure():
             assert len(node.inner_graph.edges) == 1
 
 
-
 class InplaceModule(nn.Module):
     def __init__(self):
         super().__init__()

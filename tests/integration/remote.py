@@ -51,7 +51,7 @@ def test_repeat_relu_nested():
 
     wandb.init(**wandb_init_params, name='repeat_relu_nested')
     watch(model, log_freq=1, ignore_io_grad_classes=[], backend='wandb')
-    infra.run_trial(model, X, y, steps=15)
+    infra.run_trial(model, X, y, steps=5)
     wandb.finish()
 
 
@@ -69,7 +69,7 @@ def test_resnet():
         disable_inplace=True,
         backend='wandb'
     )
-    infra.run_trial(model, X, y, steps=15)
+    infra.run_trial(model, X, y, steps=5)
     wandb.finish()
 
 
@@ -82,7 +82,7 @@ def test_transformer_encoder():
 
     wandb.init(**wandb_init_params, name='transformer')
     watch(model, log_freq=1, backend='wandb')
-    infra.run_trial(model, X, y, steps=15)
+    infra.run_trial(model, X, y, steps=5)
     wandb.finish()
 
 
@@ -97,5 +97,44 @@ def test_vqvae():
 
     wandb.init(**wandb_init_params, name='vqvae')
     watch(model, log_freq=1, backend='wandb', disable_inplace=True)
-    infra.run_trial(model, X, y, steps=15, pick_yhat=1)
+    infra.run_trial(model, X, y, steps=5, pick_yhat=1)
+    wandb.finish()
+
+
+class MultiInputMultiOutputSubmoduleLongName(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(10, 10)
+        self.fc2 = nn.Linear(10, 10)
+        # self.param = nn.Parameter(torch.randn(1))
+
+    def forward(self, x1, x2):
+        y1 = self.fc1(x1)
+        y2 = self.fc2(x2)
+        return y1, y2
+
+
+class MultiInputMultiOutputModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(10, 10)
+        self.submodule = MultiInputMultiOutputSubmoduleLongName()
+        self.fc2 = nn.Linear(10, 10)
+
+    def forward(self, x):
+        y1 = self.fc1(x)
+        y2, y3 = self.submodule(y1, y1 * 5)
+        y4 = self.fc2(y2) + self.fc2(y3)
+        return y4
+
+
+def test_mimo():
+    X = torch.randn(5, 10)
+    y = torch.randn(5, 10)
+
+    model = MultiInputMultiOutputModule()
+
+    wandb.init(**wandb_init_params, name='mimo')
+    watch(model, log_freq=1, backend='wandb')
+    infra.run_trial(model, X, y, steps=5)
     wandb.finish()

@@ -1,6 +1,4 @@
-from collections import defaultdict
-import itertools
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 import torch
 from torch import Tensor
 from torch import nn
@@ -63,14 +61,8 @@ class ModuleInvocationStructure():
         self.module = module
         self.invocation_id = invocation_id
 
-        # Inner nodes are either 'Input'/'Output' strings or ModuleInvocationStructures
+        # Nodes are either 'Input x'/'Output x' strings or ModuleInvocationStructures
         self.inner_graph = nx.DiGraph()
-        self.inner_graph.add_node(
-            'Input', memory_id=None, label='Input', tooltip='Input'
-        )
-        self.inner_graph.add_node(
-            'Output', memory_id=None, label='Output', tooltip='Output'
-        )
 
         self.upstreams_fetched = False
 
@@ -101,4 +93,4 @@ class ModuleInvocationStructure():
 
     # NOTE: Overriding __str__ breaks the graphviz rendering...
     def str_impl(self) -> str:
-        return f'{self.module.__class__.__name__}: Invocation {self.invocation_id}'
+        return f'{self.module.__class__.__name__}, Invocation {self.invocation_id}'

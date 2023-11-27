@@ -21,6 +21,7 @@ setup(
         'flask',
         'numpy',
         'click',
+        'loguru',
     ],
     extras_require = {
         'dev': [
