@@ -106,9 +106,9 @@ def watch(
     log_freq: int = 500,
     ignore_io_grad_classes: list[type] = [],
     disable_inplace: bool = False,
-    bins: int = 10,
+    bins: int = 20,
     sample_n: int = 100,
-    reject_outlier_proportion: float = 0,
+    reject_outlier_proportion: float = 0.1,
     time_log: tuple[str, Callable] = ('step', lambda module, step: step),
     backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
     standalone_dir: str = './torchexplorer_standalone',
@@ -131,7 +131,7 @@ Args:
     sample_n (int): The number of tensor elements to randomly sample for histograms.
     reject_outlier_proportion (float): The proportion of outliners to reject when
         computing histograms, based on distance to the median. 0.0 means reject
-        nothing, 1.0 means reject everything
+        nothing, 1.0 rejects everything. Helps chart stay in a reasonable range.
     time_log: ([tuple[str, Callable]): A tuple of (time_unit, Callable) to use for
         logging. The allable should take in the module and step and return a value
         to log. The time_unit string is just the axis label on the histogram graph.
