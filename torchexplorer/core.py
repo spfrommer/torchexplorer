@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, List
 import torch
 from torch import Tensor
 from torch import nn
@@ -17,7 +17,7 @@ InvocationId = int
 ParamName = str
 OTensor = Optional[Tensor]
 # For tracking the size of inputs / outputs
-AdaptiveSize = Optional[list[Optional[int]]]
+AdaptiveSize = Optional[List[Optional[int]]]
 
 @dataclass
 class ModuleInvocationHistograms:
