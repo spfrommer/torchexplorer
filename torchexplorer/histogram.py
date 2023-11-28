@@ -42,9 +42,10 @@ class IncrementalHistogram:
             tensor = tensor[indices]
 
         if self.params.reject_outlier_proportion > 0:
-            center = tensor.median()
             reject_n = int(tensor.shape[0] * self.params.reject_outlier_proportion)
-            tensor = tensor[torch.argsort(torch.abs(tensor - center))[:-reject_n]]
+            if reject_n > 0:
+                center = tensor.median()
+                tensor = tensor[torch.argsort(torch.abs(tensor - center))[:-reject_n]]
 
 
         t_min, t_max = tensor.min(), tensor.max()
