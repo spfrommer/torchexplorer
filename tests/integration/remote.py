@@ -17,6 +17,7 @@ from vqvae import VQVAEModel
 
 wandb_init_params = {
     'project': 'torchexplorer_tests_remote',
+    # 'project': 'torchexplorer_demo',
     'dir': '/tmp/torchexplorer_tests_remote',
 }
 log_all = ['io', 'io_grad', 'params', 'params_grad'] 
@@ -51,7 +52,7 @@ def test_repeat_relu_nested():
         relu
     )
 
-    wandb.init(**wandb_init_params, name='repeat_relu_nested')
+    wandb.init(**wandb_init_params, name='repeat_relu_nested_test')
     watch(model, log_freq=1, ignore_io_grad_classes=[], backend='wandb')
     infra.run_trial(model, X, y, steps=5)
     wandb.finish()
@@ -63,7 +64,7 @@ def test_resnet():
 
     model = torchvision.models.resnet18()
 
-    wandb.init(**wandb_init_params, name='resnet')
+    wandb.init(**wandb_init_params, name='resnet_test')
     watch(
         model,
         log_freq=1,
@@ -82,7 +83,7 @@ def test_transformer_encoder():
     encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
     model = nn.TransformerEncoder(encoder_layer, num_layers=6)
 
-    wandb.init(**wandb_init_params, name='transformer')
+    wandb.init(**wandb_init_params, name='transformer_encoder_test')
     watch(model, log_freq=1, backend='wandb')
     infra.run_trial(model, X, y, steps=5)
     wandb.finish()
@@ -97,7 +98,7 @@ def test_vqvae():
         num_embeddings=512, embedding_dim=64, commitment_cost=0.25
     )
 
-    wandb.init(**wandb_init_params, name='vqvae')
+    wandb.init(**wandb_init_params, name='vqvae_test')
     watch(model, log_freq=1, backend='wandb', disable_inplace=True)
     infra.run_trial(model, X, y, steps=5, pick_yhat=1)
     wandb.finish()
@@ -108,7 +109,6 @@ class MultiInputMultiOutputSubmoduleLongName(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(10, 10)
         self.fc2 = nn.Linear(10, 10)
-        # self.param = nn.Parameter(torch.randn(1))
 
     def forward(self, x1, x2):
         y1 = self.fc1(x1)
@@ -136,7 +136,7 @@ def test_mimo():
 
     model = MultiInputMultiOutputModule()
 
-    wandb.init(**wandb_init_params, name='mimo')
+    wandb.init(**wandb_init_params, name='multi_io_test')
     watch(model, log_freq=1, backend='wandb')
     infra.run_trial(model, X, y, steps=5)
     wandb.finish()

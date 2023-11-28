@@ -21,6 +21,7 @@ from data.metadata import get_normalize_layer
 
 wandb_init_params = {
     'project': 'torchexplorer_examples_cifar10resnet',
+    # 'project': 'torchexplorer_demo',
     'name': 'cifar10resnet',
     'dir': '/tmp/torchexplorer_examples_cifar10resnet',
 }
@@ -134,7 +135,7 @@ class TestModule(L.LightningModule):
         prefixed = {}
         for (k, v) in metrics.items():
             prefix = '1) '
-            prefix += 'Train' if 'train' in k else 'Valid' 
+            prefix += 'Train' if 'train' in k else 'Valid'
             prefix += 'Loss' if 'loss' in k else 'Accuracy'
 
             prefixed[f'{prefix}/{k}'] = v
