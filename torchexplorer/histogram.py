@@ -37,7 +37,7 @@ class IncrementalHistogram:
 
         tensor = tensor.flatten().float()
 
-        if self.params.sample_n > tensor.shape[0]:
+        if self.params.sample_n < tensor.shape[0]:
             indices = torch.randint(tensor.shape[0], (self.params.sample_n,))
             tensor = tensor[indices]
 
