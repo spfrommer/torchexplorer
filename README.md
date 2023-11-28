@@ -23,7 +23,7 @@
 <em> <a href="https://api.wandb.ai/links/spfrom_team/8qqsxx9f">Try it yourself.</a>  </em>
 </p>
 
-Curious about what's happening in your network? TorchExplorer is a simple tool that allows you to interactively inspect the inputs, outputs, parameters, and gradients for each `nn.Module` in your network. It integrates with [weights and biases](https://wandb.ai/site) and can also operate locally as a standalone solution. If your use case fits (see limitations below), it's very simple to try:
+Curious about what's happening in your network? TorchExplorer is a simple tool that allows you to interactively inspect the inputs, outputs, parameters, and gradients for each `nn.Module` in your network during training. It integrates with [weights and biases](https://wandb.ai/site) and can also operate locally as a standalone solution. If your use case fits (see limitations below), it's very simple to try:
 
 ```python
 torchexplorer.setup() # Call once before wandb.init(), not needed for standalone
@@ -36,7 +36,25 @@ torchexplorer.watch(model, backend='wandb') # Or 'standalone'
 # Training loop...
 ```
 
-For full usage examples, see `/tests` and `/examples`. 
+TorchExplorer's interactive view of the model structure is also useful in its own right (without the histogram bells-and-whistles). Here's a self-contained example for how to get an interactive view of a ResNet18. Mousing over a particular node reveals input/output tensor shapes and Module parameters. Get a feel for what this looks like [with an interactive demo](https://api.wandb.ai/links/spfrom_team/8qqsxx9f).
+```python
+import torch
+import torchvision
+from torchexplorer import watch
+
+model = torchvision.models.resnet18(pretrained=False)
+dummy_X = torch.randn(5, 3, 32, 32)
+
+# Only log input/output histograms, if you don't want even these set log=[].
+watch(model, log_freq=1, log=['io'], backend='standalone')
+
+# Do one forwards and backwards pass
+model(dummy_X).sum().backward()
+
+# Your model will be available at http://localhost:5000
+```
+
+For more usage examples, see `/tests` and `/examples`. 
 
 ### Install
 Installing requires one external `graphviz` dependency, which should be available on most package managers.
