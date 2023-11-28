@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 import torch
 from torch import Tensor
 from torch import nn
@@ -16,6 +16,8 @@ GradFn = torch.autograd.Function
 InvocationId = int
 ParamName = str
 OTensor = Optional[Tensor]
+# For tracking the size of inputs / outputs
+AdaptiveSize = Optional[list[Optional[int]]]
 
 @dataclass
 class ModuleInvocationHistograms:
@@ -52,6 +54,14 @@ class ExplorerMetadata:
         default_factory=lambda: ModuleSharedHistograms()
     )
 
+    # Input / output sizes are persisted and are dynamically updated
+    # As inputs / outputs are processed, the shape is recorded as an int tuple. If a
+    # particular dimension has variable size, it is recorded as None. If the number of
+    # dimensions is variable, the size overall is just None. The list is for multiple
+    # inputs / outputs.
+    input_sizes: dict[InvocationId, list[AdaptiveSize]] = dict_field()
+    output_sizes: dict[InvocationId, list[AdaptiveSize]] = dict_field()
+
 
 class ModuleInvocationStructure():
     """The parsed structure of a module invocation.
@@ -78,11 +88,11 @@ class ModuleInvocationStructure():
 
         for i in range(input_n):
             name = f'Input {i}'
-            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip=name)
+            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip={})
         
         for i in range(output_n):
             name = f'Output {i}'
-            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip=name)
+            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip={})
 
         self.upstreams_fetched = False
 

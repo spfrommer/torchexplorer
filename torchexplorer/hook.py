@@ -119,6 +119,31 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
             return tuple(f[0] for f in tensors[0].grad_fn.next_functions) # type: ignore
 
         return gradfns_tensors(tensors)
+    
+    def record_sizes(tensors, sizes, invocation_id):
+        if invocation_id not in sizes:
+            sizes[invocation_id] = []
+        invocation_tensor_sizes = sizes[invocation_id]
+
+        for i, tensor in enumerate(tensors):
+            if tensor is not None:
+                shape = list(tensor.shape)
+
+                if len(invocation_tensor_sizes) <= i:
+                    invocation_tensor_sizes.append(shape)
+                else:
+                    if invocation_tensor_sizes[i] is None:
+                        continue
+                    
+                    stored_shape = invocation_tensor_sizes[i]
+                    if len(shape) != len(stored_shape):
+                        invocation_tensor_sizes[i] = None
+                    
+                    # TODO: with graphviz caching, this actually doesn't need to run
+                    # since only the first pass sizes are stored.
+                    for j in range(len(shape)):
+                        if shape[j] != stored_shape[j]:
+                            stored_shape[j] = None
 
     def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
         if not should_log_callable():
@@ -176,6 +201,14 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
                 gradfn.metadata['module'] = module
                 gradfn.metadata[index_name] = i
                 gradfn.metadata['invocation_id'] = invocation_id
+        
+
+        # Record input / output sizes
+        for (tensors, sizes) in [
+            (inputs, metadata.input_sizes), (outputs_tuple, metadata.output_sizes)
+        ]:
+            record_sizes(tensors, sizes, invocation_id)
+
 
         return outputs_tuple[0] if single_output else outputs_tuple
 

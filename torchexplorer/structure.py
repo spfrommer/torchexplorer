@@ -136,11 +136,10 @@ def extract_structure(
         # Some gradfns kind of "combine" all their inputs into one gradfn node in the
         # graph (e.g., BackwardHookFunctionBackward). To keep the parent dependencies
         # exact, we only recurse into the particular gradfn_index.
+        current_module = current_struct.module
 
         log_indent_level += 1
-
-        log_args = ['INNER', current_struct.module.__class__.__name__]
-        
+        log_args = ['INNER', current_module.__class__.__name__]
         log(f'Recursing on {gradfn} with index {gradfn_index}', *log_args)
 
         if gradfn is None:
@@ -157,15 +156,13 @@ def extract_structure(
         is_exit_forward = 'output_index' in metadata
 
         if is_enter_forward:
-            assert metadata['module'] == current_struct.module
+            assert metadata['module'] == current_module
             assert metadata['invocation_id'] == current_struct.invocation_id
             name = f'Input {metadata["input_index"]}'
 
             log(f'Entering forward, input index {metadata["input_index"]}', *log_args)
-            log_indent_level -= 1
-            return [UpstreamStructureNode(name, metadata['input_index'])]
-        
-        if is_exit_forward:
+            upstreams = [UpstreamStructureNode(name, metadata['input_index'])]
+        elif is_exit_forward:
             upstream_module = metadata['module']
             invocation_id = metadata['invocation_id']
 
@@ -176,6 +173,8 @@ def extract_structure(
                 upstream_module, invocation_id
             )
 
+            tooltip = _tooltip_dict(upstream_module, current_module, invocation_id)
+
             if upstream_struct is None:
                 log(f'Creating new upstream structure', *log_args)
                 upstream_struct = _extract_structure(upstream_module, invocation_id)
@@ -183,29 +182,83 @@ def extract_structure(
                     upstream_struct,
                     memory_id=id(upstream_struct),
                     label=upstream_module.__class__.__name__,
-                    tooltip=str(upstream_module)
+                    tooltip=tooltip
                 )
-            
-            log_indent_level -= 1
-            return [UpstreamStructureNode(upstream_struct, metadata['output_index'])]
+            upstreams = [
+                UpstreamStructureNode(upstream_struct, metadata['output_index'])
+            ]
+        else:
+            if 'upstreams_cache' in gradfn.metadata:
+                if gradfn_index in gradfn.metadata['upstreams_cache']:
+                    return gradfn.metadata['upstreams_cache'][gradfn_index]
 
-        if 'upstreams_cache' in gradfn.metadata:
-            if gradfn_index in gradfn.metadata['upstreams_cache']:
-                return gradfn.metadata['upstreams_cache'][gradfn_index]
+            upstreams = _flatten([
+                _inner_recurse(current_struct, n[0], n[1]) for n in next_functions
+            ])
 
-        all_upstreams = _flatten([
-            _inner_recurse(current_struct, next[0], next[1]) for next in next_functions
-        ])
 
-        if 'upstreams_cache' not in gradfn.metadata:
-            gradfn.metadata['upstreams_cache'] = {}
-        
-        gradfn.metadata['upstreams_cache'][gradfn_index] = all_upstreams
-
-        log(f'Returning {len(all_upstreams)} intermediate upstreams', *log_args)
+            if 'upstreams_cache' not in gradfn.metadata:
+                gradfn.metadata['upstreams_cache'] = {}
+            gradfn.metadata['upstreams_cache'][gradfn_index] = upstreams
+            log(f'Returning {len(upstreams)} intermediate upstreams', *log_args)
 
         log_indent_level -= 1
-        return all_upstreams
+        return upstreams
+    
+    def _tooltip_dict(
+            module: nn.Module, parent_module: nn.Module, invocation_id: InvocationId
+        ) -> dict:
+
+        name_in_parent = ''
+        for name, m in parent_module.named_children():
+            if m == module:
+                name_in_parent = name
+                break
+                
+            if isinstance(m, nn.ModuleList):
+                for i, mm in enumerate(m):
+                    if mm == module:
+                        name_in_parent = f'{name}[{i}]'
+                        break
+            
+            if isinstance(m, nn.ModuleDict):
+                for k, mm in m.items():
+                    if mm == module:
+                        name_in_parent = f'{name}[{k}]'
+                        break
+
+        keys, vals = [], []
+
+        metadata = module.torchexplorer_metadata 
+
+        one_input = len(metadata.input_sizes[invocation_id]) == 1
+        for i, input_size in enumerate(metadata.input_sizes[invocation_id]):
+            keys.append('in_size' if one_input else f'in{i}_size')
+            vals.append(str(input_size).replace('None', '—'))
+        
+        one_output = len(metadata.output_sizes[invocation_id]) == 1
+        for i, output_size in enumerate(metadata.output_sizes[invocation_id]):
+            keys.append('out_size' if one_output else f'out{i}_size')
+            vals.append(str(output_size).replace('None', '—'))
+
+        try:
+            extra_rep_keys, extra_rep_vals = [], []
+            extra_rep = module.extra_repr()
+            pairs = re.split(r',\s*(?![^()]*\))(?![^[]]*\])', extra_rep)
+            for pair in pairs:
+                if pair == '':
+                    continue
+                k, v = pair.split('=') if ('=' in pair) else ('—', pair)
+                extra_rep_keys.append(k.strip())
+                extra_rep_vals.append(v.strip())
+        except Exception:
+            extra_rep_keys, extra_rep_vals = [], []
+
+        keys += extra_rep_keys
+        vals += extra_rep_vals
+        assert len(keys) == len(vals)
+
+        return {'title': name_in_parent, 'keys': keys, 'vals': vals}
     
     return _extract_structure(module, invocation_id)
 

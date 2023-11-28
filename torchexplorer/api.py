@@ -165,7 +165,7 @@ def _wandb_backend_update(renderable: layout.ModuleInvocationRenderable, counter
     explorer_table, fields = layout.wandb_table(renderable)
 
     chart = wandb.plot_table(
-        vega_spec_name='spfrom_team/torchexplorer_v1c',
+        vega_spec_name='spfrom_team/torchexplorer_v2a',
         data_table=explorer_table,
         fields=fields,
         string_fields={}

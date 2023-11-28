@@ -1,8 +1,10 @@
 from __future__ import annotations
+import ast
 import copy
 
 import json
-from typing import Optional
+import string
+from typing import Optional, Union
 import numpy as np
 import networkx as nx
 from subprocess import Popen, PIPE
@@ -27,9 +29,20 @@ class OrthoEdge:
 
 
 @dataclass
+class TooltipRenderable:
+    title: str
+    keys: list[str]
+    vals: list[str]
+
+    # Coordinates in parent of the renderable this tooltip belongs to
+    bottom_left_corner: list[float] = field(default_factory=lambda: [0, 0]) 
+    top_right_corner: list[float] = field(default_factory=lambda: [0, 0])
+
+
+@dataclass
 class ModuleInvocationRenderable:
     display_name: Optional[str] = None
-    tooltip: Optional[str] = None
+    tooltip: Optional[TooltipRenderable] = None
 
     invocation_hists: Optional[ModuleInvocationHistograms] = None
     invocation_grad_hists: Optional[ModuleInvocationHistograms] = None
@@ -82,29 +95,7 @@ def _layout_into(
         return
 
     _preprocess_io_names(structure)
-
-    if cached_structure is not None:
-        json_data = copy.deepcopy(cached_structure.graphviz_json_cache)
-        assert json_data is not None
-        for object in json_data['objects']:
-            if (is_input_node(object['label']) or is_output_node(object['label'])):
-                continue
-
-            old_mem_id = int(object['memory_id'])
-            old_struct = cached_structure.get_inner_structure_from_memory_id(old_mem_id)
-            assert old_struct is not None
-            new_struct = structure.get_inner_structure_from_structure_id(
-                old_struct.structure_id
-            )
-            assert new_struct is not None
-            object['memory_id'] = id(new_struct)
-            object['cached_structure'] = old_struct
-    else:
-        json_data = _get_graphviz_json(structure)
-        structure.graphviz_json_cache = json_data
-
-        for object in json_data['objects']:
-            object['cached_structure'] = None
+    json_data = _get_graphviz_json_with_caching(structure, cached_structure)
 
 
     for object in json_data['objects']:
@@ -113,9 +104,12 @@ def _layout_into(
 
         inner_renderable = ModuleInvocationRenderable()
         inner_renderable.display_name = object['label']
-        inner_renderable.tooltip = object['tooltip']
         inner_renderable.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
         inner_renderable.top_right_corner = [draw_xs.max(), draw_ys.max()]
+
+        tooltip_dict = ast.literal_eval(object['tooltip'])
+        if len(tooltip_dict) > 0:
+            _add_tooltip(tooltip_dict, inner_renderable)
 
         if not (is_input_node(object['label']) or is_output_node(object['label'])):
             memory_id = int(object['memory_id'])
@@ -150,6 +144,67 @@ def _layout_into(
     _translate_object_nodes_and_edges(
         renderable.inner_graph_renderables, renderable.inner_graph_edges
     )
+
+def _add_tooltip(tooltip_dict: dict, renderable: ModuleInvocationRenderable) -> None:
+    tooltip_title_font_size, tooltip_font_size = 14, 11
+    key_truncate_width = 70
+    def truncate_string_width(st, truncate=False, title=False):
+        # Adapted from https://stackoverflow.com/questions/16007743/roughly-approximate-the-width-of-a-string-of-text-in-python
+        nonlocal key_truncate_width
+
+        font_size = tooltip_title_font_size if title else tooltip_font_size
+        truncate_width = key_truncate_width
+
+        size_to_pixels = (font_size / 12) * 16 * (6 / 1000.0) 
+        truncate_width = truncate_width / size_to_pixels
+        size = 0 # in milinches
+        for i, s in enumerate(st):
+            if s in 'lij|\' ': size += 37
+            elif s in '![]fI.,:;/\\t': size += 50
+            elif s in '`-(){}r"': size += 60
+            elif s in '*^zcsJkvxy': size += 85
+            elif s in 'aebdhnopqug#$L+<>=?_~FZT' + string.digits: size += 95
+            elif s in 'BSPEAKVXY&UwNRCHD': size += 112
+            elif s in 'QGOMm%W@': size += 135
+            else: size += 50
+
+            if size >= truncate_width and truncate:
+                return (st[:max(0, i - 1)] + '...'), size_to_pixels * (size + 150)
+
+        return st, size_to_pixels * size
+
+    node_bottom_left = np.array(renderable.bottom_left_corner)
+    node_top_right = np.array(renderable.top_right_corner)
+    node_center_y = (node_bottom_left[1] + node_top_right[1]) / 2
+
+    for i, key in enumerate(tooltip_dict['keys']):
+        tooltip_dict['keys'][i] = truncate_string_width(key, True)[0]
+
+
+    line_widths = [truncate_string_width(tooltip_dict['title'], False, True)[1]]
+    assert len(tooltip_dict['keys']) == len(tooltip_dict['vals'])
+    for key, val in zip(tooltip_dict['keys'], tooltip_dict['vals']):
+        line_widths.append(truncate_string_width(f'{key}{val}', False)[1])
+    
+    tooltip_width = max(line_widths) * 0.95 + 20
+    tooltip_lines = 1 + len(tooltip_dict['keys'])
+    tooltip_height = 20 + (tooltip_font_size + 2) * tooltip_lines
+
+    tooltip_bottom_left = [node_top_right[0] + 20, node_center_y - tooltip_height / 2]
+    tooltip_top_right = [
+        tooltip_bottom_left[0] + tooltip_width,
+        tooltip_bottom_left[1] + tooltip_height
+    ]
+
+    tooltip = TooltipRenderable(
+        title=tooltip_dict['title'],
+        keys=tooltip_dict['keys'],
+        vals=tooltip_dict['vals'],
+        bottom_left_corner=tooltip_bottom_left,
+        top_right_corner=tooltip_top_right
+    )
+
+    renderable.tooltip = tooltip
 
 def _process_graph(renderable: ModuleInvocationRenderable):
     renderable_id_counter = 0
@@ -202,11 +257,20 @@ def _translate_object_nodes_and_edges(
     
     assert trans is not None
 
-    for renderable in renderables:
+    def apply_translation_renderable(
+            renderable: Union[ModuleInvocationRenderable, TooltipRenderable]
+        ):
         renderable.bottom_left_corner[0] += trans[0]
         renderable.bottom_left_corner[1] += trans[1]
         renderable.top_right_corner[0] += trans[0]
         renderable.top_right_corner[1] += trans[1]
+
+
+    for renderable in renderables:
+        apply_translation_renderable(renderable)
+        if renderable.tooltip is not None:
+            apply_translation_renderable(renderable.tooltip)
+    
 
     for edge in edges:
         edge.path_points = [
@@ -221,12 +285,42 @@ def _preprocess_io_names(structure: ModuleInvocationStructure) -> None:
     multiple_outputs = structure.inner_graph.has_node('Output 1')
 
     if not multiple_inputs:
-        new_attributes = {'Input 0': {'label': 'Input', 'tooltip': 'Input'}}
+        new_attributes = {'Input 0': {'label': 'Input', 'tooltip': {}}}
         nx.set_node_attributes(structure.inner_graph, new_attributes)
     
     if not multiple_outputs:
-        new_attributes = {'Output 0': {'label': 'Output', 'tooltip': 'Output'}}
+        new_attributes = {'Output 0': {'label': 'Output', 'tooltip': {}}}
         nx.set_node_attributes(structure.inner_graph, new_attributes)
+
+def _get_graphviz_json_with_caching(
+        structure: ModuleInvocationStructure,
+        cached_structure: Optional[ModuleInvocationStructure] = None
+    ) -> dict:
+
+    if cached_structure is not None:
+        json_data = copy.deepcopy(cached_structure.graphviz_json_cache)
+        assert json_data is not None
+        for object in json_data['objects']:
+            if (is_input_node(object['label']) or is_output_node(object['label'])):
+                continue
+
+            old_mem_id = int(object['memory_id'])
+            old_struct = cached_structure.get_inner_structure_from_memory_id(old_mem_id)
+            assert old_struct is not None
+            new_struct = structure.get_inner_structure_from_structure_id(
+                old_struct.structure_id
+            )
+            assert new_struct is not None
+            object['memory_id'] = id(new_struct)
+            object['cached_structure'] = old_struct
+    else:
+        json_data = _get_graphviz_json(structure)
+        structure.graphviz_json_cache = json_data
+
+        for object in json_data['objects']:
+            object['cached_structure'] = None
+    
+    return json_data
 
 def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> dict:
     # Graphviz carries through the node attributes from structure.py to the JSON 
@@ -326,6 +420,23 @@ def _serialize_renderable(renderable: ModuleInvocationRenderable) -> dict:
 def _serialize_node(r: ModuleInvocationRenderable) -> dict:
     def parent_stack_str(parent_stack: list[tuple[str, int]]) -> str:
         return ';'.join([f'{name}::{id}' for name, id in parent_stack])
+
+    def tooltip_str(tooltip: Optional[TooltipRenderable]) -> str:
+        if tooltip is None:
+            return ''
+        # String is of the form
+        # bl_corn_x::bl_corn_y::tr_corn_x::tr_corn_y!!title!!key1::...!!val1::...
+
+        bl_corn_x, bl_corn_y = tooltip.bottom_left_corner
+        tr_corn_x, tr_corn_y = tooltip.top_right_corner
+        title = tooltip.title
+        keys, vals = tooltip.keys, tooltip.vals
+
+        return (
+            f'{bl_corn_x}::{bl_corn_y}::{tr_corn_x}::{tr_corn_y}!!{title}!!' +
+            '::'.join(keys) + '!!' + '::'.join(vals)
+        )
+
 
     def child_ids_str(child_ids: list[int]) -> str:
         return ';'.join([str(id) for id in child_ids])
@@ -428,11 +539,6 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         if getattr(r, attr1) is not None:
             return getattr(getattr(r, attr1), attr2)
         return None
-    
-    def truncate_tooltip(tooltip: Optional[str]) -> Optional[str]:
-        if tooltip is not None and len(tooltip) > 100:
-            return tooltip[:100] + '...'
-        return tooltip
 
 
     input_hists = renderable_resolve('invocation_hists', 'input_hists')
@@ -458,7 +564,7 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         'child_ids': child_ids_str(r.child_ids),
         'parent_stack': parent_stack_str(r.parent_stack),
         'display_name': r.display_name,
-        'tooltip': truncate_tooltip(r.tooltip),
+        'tooltip': tooltip_str(r.tooltip),
         'input_histograms': input_hists_str,
         'output_histograms': output_hists_str,
         'param_histograms': param_hists_str,

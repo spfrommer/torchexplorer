@@ -51,7 +51,13 @@
         ]
       },
       {"name": "panel_n", "update": "floor((width - explorer_width) / panel_width)"},
-      {"name": "node_text_fontsize", "value": 16}
+      {"name": "node_text_fontsize", "value": 16},
+      {"name": "tooltip_title_fontsize", "value": 14},
+      {"name": "tooltip_title_delta", "value": [10, -10]},
+      {"name": "tooltip_text_fontsize", "value": 11},
+      {"name": "tooltip_keys_delta", "value": [10, -15]},
+      {"name": "tooltip_values_delta", "value": [-10, -15]},
+      {"name": "global_font", "value": "sans-serif"}
     ]
   },
 
@@ -133,6 +139,74 @@
         {
           "type": "filter",
           "expr": "scale('yscale_explorer', datum.top_right_corner_y) > 0 && scale('yscale_explorer', datum.bottom_left_corner_y) < height"
+        }
+      ]
+    },
+    { "name": "active_tooltip",
+      "source": "active_nodes",
+      "transform": [
+        {
+          "type": "project",
+          "fields": ["id", "tooltip"],
+          "as": ["id", "tooltip"]
+        },
+        {
+          "type": "filter",
+          "expr": "length(datum.tooltip) > 0"
+        },
+        {
+          "type": "formula",
+          "as": "tooltip",
+          "expr": "split(datum.tooltip, '!!')"
+        },
+        {
+          "type": "project",
+          "fields": ["id", "tooltip[0]", "tooltip[1]", "tooltip[2]", "tooltip[3]"],
+          "as": ["id", "bounds", "title", "keys", "vals"]
+        },
+        {
+          "type": "formula",
+          "as": "bounds",
+          "expr": "split(datum.bounds, '::')"
+        },
+        {
+          "type": "project",
+          "fields": ["id", "bounds[0]", "bounds[1]", "bounds[2]", "bounds[3]", "title", "keys", "vals"],
+          "as": ["id", "bottom_left_corner_x", "bottom_left_corner_y", "top_right_corner_x", "top_right_corner_y", "title", "keys", "vals"]
+        },
+        {
+          "type": "formula",
+          "as": "bottom_left_corner_x",
+          "expr": "parseFloat(datum.bottom_left_corner_x)"
+        },
+        {
+          "type": "formula",
+          "as": "bottom_left_corner_y",
+          "expr": "parseFloat(datum.bottom_left_corner_y)"
+        },
+        {
+          "type": "formula",
+          "as": "top_right_corner_x",
+          "expr": "parseFloat(datum.top_right_corner_x)"
+        },
+        {
+          "type": "formula",
+          "as": "top_right_corner_y",
+          "expr": "parseFloat(datum.top_right_corner_y)"
+        },
+        {
+          "type": "formula",
+          "as": "keys",
+          "expr": "if(length(datum.keys) > 0, split(datum.keys, '::'), [])"
+        },
+        {
+          "type": "formula",
+          "as": "vals",
+          "expr": "if(length(datum.vals) > 0, split(datum.vals, '::'), [])"
+        },
+        {
+          "type": "filter",
+          "expr": "datum.id == hover_node_id"
         }
       ]
     },
@@ -726,8 +800,7 @@
           "x": {"scale": "xscale_explorer", "field": "bottom_left_corner_x"},
           "x2": {"scale": "xscale_explorer", "field": "top_right_corner_x"},
           "y": {"scale": "yscale_explorer", "field": "bottom_left_corner_y"},
-          "y2": {"scale": "yscale_explorer", "field": "top_right_corner_y"},
-          "tooltip": {"signal": "datum.tooltip"}
+          "y2": {"scale": "yscale_explorer", "field": "top_right_corner_y"}
         }
       }
     },
@@ -746,9 +819,109 @@
           "y": {"scale": "yscale_explorer", "signal": "(datum.bottom_left_corner_y+datum.top_right_corner_y)/2"},
           "align": {"value": "center"},
           "baseline": {"value": "middle"},
-          "font": {"value": "sans-serif"},
-          "fontSize": {"signal": "node_text_fontsize"},
-          "tooltip": {"signal": "datum.tooltip"}
+          "font": {"signal": "global_font"},
+          "fontSize": {"signal": "node_text_fontsize"}
+        }
+      }
+    },
+    { "name": "tooltip_rect",
+      "type": "rect",
+      "zindex": 4,
+      "from": {"data": "active_tooltip"},
+      "encode": {
+        "enter": {
+          "stroke": {"value": "black"},
+          "strokeWidth": {"value": 1},
+          "cornerRadius": {"value": 3}
+        },
+        "update": {
+          "strokeOpacity": {"value": 0.8},
+          "fillOpacity": {"value": 1.0},
+          "fill": {"signal": "neutral_color"},
+          "x": {"scale": "xscale_explorer", "field": "bottom_left_corner_x"},
+          "x2": {"scale": "xscale_explorer", "field": "top_right_corner_x"},
+          "y": {"scale": "yscale_explorer", "field": "bottom_left_corner_y"},
+          "y2": {"scale": "yscale_explorer", "field": "top_right_corner_y"}
+        }
+      }
+    },
+    { "name": "tooltip_backdrop_rect",
+      "type": "rect",
+      "zindex": 3,
+      "from": {"data": "active_tooltip"},
+      "encode": {
+        "enter": {
+          "cornerRadius": {"value": 3}
+        },
+        "update": {
+          "fillOpacity": {"value": 1.0},
+          "fill": {"value": "#aaa"},
+          "x": {"scale": "xscale_explorer", "field": "bottom_left_corner_x"},
+          "x2": {"scale": "xscale_explorer", "signal": "datum.top_right_corner_x + 2"},
+          "y": {"scale": "yscale_explorer", "signal": "datum.bottom_left_corner_y - 2"},
+          "y2": {"scale": "yscale_explorer", "field": "top_right_corner_y"}
+        }
+      }
+    },
+    { "name": "tooltip_title_text",
+      "type": "text",
+      "zindex": 5,
+      "from": {"data": "active_tooltip"},
+      "encode": {
+        "enter": {
+          "fill": {"value": "#000"}
+        },
+        "update": {
+          "opacity": {"value": 0.85},
+          "text": {"field": "title"},
+          "x": {"scale": "xscale_explorer", "signal": "tooltip_title_delta[0] + datum.bottom_left_corner_x"},
+          "y": {"scale": "yscale_explorer", "signal": "tooltip_title_delta[1] + datum.top_right_corner_y"},
+          "align": {"value": "left"},
+          "baseline": {"value": "top"},
+          "font": {"signal": "global_font"},
+          "fontSize": {"signal": "tooltip_title_fontsize"},
+          "fontWeight": {"value": "bolder"}
+        }
+      }
+    },
+    { "name": "tooltip_keys_text",
+      "type": "text",
+      "zindex": 5,
+      "from": {"data": "active_tooltip"},
+      "encode": {
+        "enter": {
+          "fill": {"value": "#000"}
+        },
+        "update": {
+          "opacity": {"value": 0.85},
+          "text": {"field": "keys"},
+          "x": {"scale": "xscale_explorer", "signal": "tooltip_keys_delta[0] + datum.bottom_left_corner_x"},
+          "y": {"scale": "yscale_explorer", "signal": "tooltip_keys_delta[1] - tooltip_title_fontsize + datum.top_right_corner_y"},
+          "align": {"value": "left"},
+          "baseline": {"value": "top"},
+          "font": {"signal": "global_font"},
+          "fontSize": {"signal": "tooltip_text_fontsize"},
+          "fontWeight": {"value": "bold"}
+        }
+      }
+    },
+    { "name": "tooltip_values_text",
+      "type": "text",
+      "zindex": 5,
+      "from": {"data": "active_tooltip"},
+      "encode": {
+        "enter": {
+          "fill": {"value": "#000"}
+        },
+        "update": {
+          "opacity": {"value": 0.85},
+          "text": {"field": "vals"},
+          "x": {"scale": "xscale_explorer", "signal": "tooltip_values_delta[0] + datum.top_right_corner_x"},
+          "y": {"scale": "yscale_explorer", "signal": "tooltip_values_delta[1] - tooltip_title_fontsize + datum.top_right_corner_y"},
+          "align": {"value": "right"},
+          "baseline": {"value": "top"},
+          "font": {"signal": "global_font"},
+          "fontSize": {"signal": "tooltip_text_fontsize"}
         }
       }
     },
@@ -831,7 +1004,7 @@
           "y": {"field": "y_position"},
           "align": {"value": "left"},
           "baseline": {"value": "alphabetic"},
-          "font": {"value": "sans-serif"},
+          "font": {"signal": "global_font"},
           "fontSize": {"value": 18},
           "limit": {"signal": "parents_navigator_width"}
         },
@@ -1187,7 +1360,8 @@
                 "update": {
                   "x": {"field": "text_x"},
                   "y": {"field": "text_y"},
-                  "baseline": {"field": "text_baseline"}
+                  "baseline": {"field": "text_baseline"},
+                  "font": {"signal": "global_font"}
                 }
               }
             },
@@ -1204,7 +1378,8 @@
                   "x": {"signal": "datum.text_x - 2"},
                   "y": {"signal": "datum.text_y + 3"},
                   "align": {"field": "text_align"},
-                  "baseline": {"value": "top"}
+                  "baseline": {"value": "top"},
+                  "font": {"signal": "global_font"}
                 }
               }
             },
@@ -1290,7 +1465,8 @@
                   "x": {"signal": "datum.text_x - histogram_inner_width"},
                   "y": {"signal": "datum.text_y + 3"},
                   "align": {"value": "left"},
-                  "baseline": {"value": "top"}
+                  "baseline": {"value": "top"},
+                  "font": {"signal": "global_font"}
                 }
               }
             },
@@ -1308,7 +1484,8 @@
                   "baseline": {"value": "top"},
                   "align": {"value": "center"},
                   "fontSize": {"value": 12},
-                  "limit": {"signal": "histogram_inner_width - histogram_margin * 2"}
+                  "limit": {"signal": "histogram_inner_width - histogram_margin * 2"},
+                  "font": {"signal": "global_font"}
                 }
               }
             },
@@ -1326,7 +1503,8 @@
                   "y": {"value": 5},
                   "baseline": {"value": "top"},
                   "align": {"value": "center"},
-                  "fontSize": {"value": 18}
+                  "fontSize": {"value": 18},
+                  "font": {"signal": "global_font"}
                 }
               }
             },
@@ -1384,6 +1562,7 @@
               "x": {"signal": "panel_width/2"},
               "y": {"signal": "panel_header_height/2-2"},
               "fontSize": {"value": 20},
+              "font": {"signal": "global_font"},
               "align": {"value": "center"},
               "baseline": {"value": "middle"},
               "text": {"signal": "parent.node_name"},
@@ -1398,6 +1577,7 @@
               "x": {"signal": "panel_width - histogram_margin - 2 * panel_header_button_width"},
               "y": {"signal": "panel_header_height/2-2"},
               "fontSize": {"value": 20},
+              "font": {"signal": "global_font"},
               "align": {"value": "left"},
               "baseline": {"value": "middle"},
               "text": {"value": "🔍︎"}
@@ -1411,6 +1591,7 @@
               "x": {"signal": "panel_width - histogram_margin - panel_header_button_width"},
               "y": {"signal": "panel_header_height/2-2"},
               "fontSize": {"value": 25},
+              "font": {"signal": "global_font"},
               "align": {"value": "left"},
               "baseline": {"value": "middle"},
               "text": {"value": "✕"}
@@ -1459,7 +1640,7 @@
           "y": {"signal": "mouse_position.y"},
           "align": {"value": "center"},
           "baseline": {"value": "middle"},
-          "font": {"value": "sans-serif"},
+          "font": {"signal": "global_font"},
           "fontSize": {"signal": "node_text_fontsize"}
         }
       }
@@ -1509,7 +1690,7 @@
           "y": {"signal": "height / 2 - 20"},
           "align": {"value": "center"},
           "baseline": {"value": "middle"},
-          "font": {"value": "sans-serif"},
+          "font": {"signal": "global_font"},
           "fontSize": {"value": 18}
         }
       }

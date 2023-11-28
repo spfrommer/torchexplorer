@@ -61,14 +61,14 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-2)
     loss_fn = torch.nn.MSELoss()
 
-    for step in range(10):
+    for step in range(2):
         y_hat = model(X)
         loss = loss_fn(y_hat, y)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
 
-    renderable = layout.layout(structure_wrapper.structure)
+    renderable = layout.layout(structure_wrapper.structure)[0]
     rendered_layout = layout.serialized_rows(renderable)
 
     def custom_json(d: dict):
