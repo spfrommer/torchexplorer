@@ -45,8 +45,8 @@ def push_histogram_histories(
         module: nn.Module,
         hist_params: HistogramParams,
         time: int,
-        log_params,
-        log_params_grad,
+        log_params: bool,
+        log_params_grad: bool,
     ):
     """Pushes the histograms of a module and its children to their histories."""
     
