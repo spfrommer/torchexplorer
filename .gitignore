@@ -3,8 +3,7 @@ pretrain/
 /data/
 .vscode/
 *.swp
-notes.txt
-deploy.py
+private/
 setup.sh
 MANIFEST.in
 
