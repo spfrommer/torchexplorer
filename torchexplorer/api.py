@@ -103,6 +103,7 @@ def watch(
     step_counter = 0
     should_log_callable = lambda: (step_counter % log_freq == 0) and module.training
 
+    backend_handler: Backend
     if backend == 'wandb':
         backend_handler = WandbBackend(watch_counter)
     elif backend == 'standalone':
