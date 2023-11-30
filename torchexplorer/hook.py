@@ -10,7 +10,7 @@ from torchexplorer.core import (
     ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms,
     OTensor, GradFn
 )
-from torchexplorer.histogram import HistogramParams, IncrementalHistogram
+from torchexplorer.components.histogram import HistogramParams, IncrementalHistogram
 
 
 def hook(

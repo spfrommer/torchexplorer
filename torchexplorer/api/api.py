@@ -10,7 +10,7 @@ from torchexplorer import core, hook, layout, structure
 from torchexplorer.api.backend import (
     Backend, DummyBackend, StandaloneBackend, WandbBackend
 )
-from torchexplorer.histogram import HistogramParams
+from torchexplorer.components.histogram import HistogramParams
 
 
 @dataclass

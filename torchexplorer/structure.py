@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import sys
 from loguru import logger
+from torchexplorer.components.tooltip import Tooltip
 
 config = {'handlers': [{ 'sink': sys.stderr, 'format': '{message}', 'level': 'DEBUG' }]}
 logger.configure(**config)  # type: ignore
@@ -173,7 +174,7 @@ def extract_structure(
                 upstream_module, invocation_id
             )
 
-            tooltip = _tooltip_dict(upstream_module, current_module, invocation_id)
+            tooltip = Tooltip.create(upstream_module, current_module, invocation_id)
 
             if upstream_struct is None:
                 log(f'Creating new upstream structure', *log_args)
@@ -182,7 +183,7 @@ def extract_structure(
                     upstream_struct,
                     memory_id=id(upstream_struct),
                     label=upstream_module.__class__.__name__,
-                    tooltip=tooltip
+                    tooltip=tooltip.to_dict_string()
                 )
             upstreams = [
                 UpstreamStructureNode(upstream_struct, metadata['output_index'])
@@ -205,60 +206,6 @@ def extract_structure(
         log_indent_level -= 1
         return upstreams
     
-    def _tooltip_dict(
-            module: nn.Module, parent_module: nn.Module, invocation_id: InvocationId
-        ) -> dict:
-
-        name_in_parent = ''
-        for name, m in parent_module.named_children():
-            if m == module:
-                name_in_parent = name
-                break
-                
-            if isinstance(m, nn.ModuleList):
-                for i, mm in enumerate(m):
-                    if mm == module:
-                        name_in_parent = f'{name}[{i}]'
-                        break
-            
-            if isinstance(m, nn.ModuleDict):
-                for k, mm in m.items():
-                    if mm == module:
-                        name_in_parent = f'{name}[{k}]'
-                        break
-
-        keys, vals = [], []
-
-        metadata = module.torchexplorer_metadata 
-
-        one_input = len(metadata.input_sizes[invocation_id]) == 1
-        for i, input_size in enumerate(metadata.input_sizes[invocation_id]):
-            keys.append('in_size' if one_input else f'in{i}_size')
-            vals.append(str(input_size).replace('None', '—'))
-        
-        one_output = len(metadata.output_sizes[invocation_id]) == 1
-        for i, output_size in enumerate(metadata.output_sizes[invocation_id]):
-            keys.append('out_size' if one_output else f'out{i}_size')
-            vals.append(str(output_size).replace('None', '—'))
-
-        try:
-            extra_rep_keys, extra_rep_vals = [], []
-            extra_rep = module.extra_repr()
-            pairs = re.split(r',\s*(?![^()]*\))(?![^[]]*\])', extra_rep)
-            for pair in pairs:
-                if pair == '':
-                    continue
-                k, v = pair.split('=') if ('=' in pair) else ('—', pair)
-                extra_rep_keys.append(k.strip())
-                extra_rep_vals.append(v.strip())
-        except Exception:
-            extra_rep_keys, extra_rep_vals = [], []
-
-        keys += extra_rep_keys
-        vals += extra_rep_vals
-        assert len(keys) == len(vals)
-
-        return {'title': name_in_parent, 'keys': keys, 'vals': vals}
     
     return _extract_structure(module, invocation_id)
 

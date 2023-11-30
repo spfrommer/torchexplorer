@@ -8,7 +8,8 @@ from torch import optim
 from torch import nn
 import pyperclip
 
-from torchexplorer import layout, api
+from torchexplorer import layout
+from torchexplorer.api import api
 
 
 class NonDiffSubModule(nn.Module):

@@ -1,5 +1,4 @@
 from __future__ import annotations
-import ast
 import copy
 
 import json
@@ -12,16 +11,17 @@ from subprocess import Popen, PIPE
 from dataclasses import dataclass, field
 
 import wandb
+from torchexplorer.components.tooltip import Tooltip
 
 from torchexplorer.core import (
     ModuleInvocationHistograms, ModuleInvocationStructure, ModuleSharedHistograms
 )
 from torchexplorer.structure import is_input_node, is_output_node
-from torchexplorer.histogram import IncrementalHistogram
+from torchexplorer.components.histogram import IncrementalHistogram
 
 
 @dataclass
-class OrthoEdge:
+class EdgeRenderable:
     path_points: list[list[float]]
     arrowhead_points: list[list[float]]
     downstream_input_index: Optional[int]
@@ -30,9 +30,7 @@ class OrthoEdge:
 
 @dataclass
 class TooltipRenderable:
-    title: str
-    keys: list[str]
-    vals: list[str]
+    tooltip: Tooltip
 
     # Coordinates in parent of the renderable this tooltip belongs to
     bottom_left_corner: list[float] = field(default_factory=lambda: [0, 0]) 
@@ -56,7 +54,7 @@ class ModuleInvocationRenderable:
     inner_graph_renderables: list['ModuleInvocationRenderable'] = (
         field(default_factory=lambda: [])
     )
-    inner_graph_edges: list[OrthoEdge] = field(default_factory=lambda: [])
+    inner_graph_edges: list[EdgeRenderable] = field(default_factory=lambda: [])
 
     # Data added in the _process_graph function, after everything has been layed out
     # These ids are not related to the structure_id of the ModuleInvocationStructure
@@ -107,9 +105,8 @@ def _layout_into(
         inner_renderable.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
         inner_renderable.top_right_corner = [draw_xs.max(), draw_ys.max()]
 
-        tooltip_dict = ast.literal_eval(object['tooltip'])
-        if len(tooltip_dict) > 0:
-            _add_tooltip(tooltip_dict, inner_renderable)
+        if object['tooltip'] != '{}':
+            _add_tooltip(Tooltip.from_dict_string(object['tooltip']), inner_renderable)
 
         if not (is_input_node(object['label']) or is_output_node(object['label'])):
             memory_id = int(object['memory_id'])
@@ -134,7 +131,7 @@ def _layout_into(
     
     if 'edges' in json_data:
         for edge in json_data['edges']:
-            renderable.inner_graph_edges.append(OrthoEdge(
+            renderable.inner_graph_edges.append(EdgeRenderable(
                 path_points=edge['_draw_'][-1]['points'],
                 arrowhead_points=edge['_hdraw_'][-1]['points'],
                 downstream_input_index=int(edge['downstream_input_index']),
@@ -145,7 +142,7 @@ def _layout_into(
         renderable.inner_graph_renderables, renderable.inner_graph_edges
     )
 
-def _add_tooltip(tooltip_dict: dict, renderable: ModuleInvocationRenderable) -> None:
+def _add_tooltip(tooltip: Tooltip, renderable: ModuleInvocationRenderable) -> None:
     tooltip_title_font_size, tooltip_font_size = 14, 11
     key_truncate_width = 70
     def truncate_string_width(st, truncate=False, title=False):
@@ -177,17 +174,16 @@ def _add_tooltip(tooltip_dict: dict, renderable: ModuleInvocationRenderable) -> 
     node_top_right = np.array(renderable.top_right_corner)
     node_center_y = (node_bottom_left[1] + node_top_right[1]) / 2
 
-    for i, key in enumerate(tooltip_dict['keys']):
-        tooltip_dict['keys'][i] = truncate_string_width(key, True)[0]
+    for i, key in enumerate(tooltip.keys):
+        tooltip.keys[i] = truncate_string_width(key, True)[0]
 
 
-    line_widths = [truncate_string_width(tooltip_dict['title'], False, True)[1]]
-    assert len(tooltip_dict['keys']) == len(tooltip_dict['vals'])
-    for key, val in zip(tooltip_dict['keys'], tooltip_dict['vals']):
+    line_widths = [truncate_string_width(tooltip.title, False, True)[1]]
+    for key, val in zip(tooltip.keys, tooltip.vals):
         line_widths.append(truncate_string_width(f'{key}{val}', False)[1])
     
     tooltip_width = max(line_widths) * 0.95 + 20
-    tooltip_lines = 1 + len(tooltip_dict['keys'])
+    tooltip_lines = 1 + len(tooltip.keys)
     tooltip_height = 20 + (tooltip_font_size + 2) * tooltip_lines
 
     tooltip_bottom_left = [node_top_right[0] + 20, node_center_y - tooltip_height / 2]
@@ -196,15 +192,11 @@ def _add_tooltip(tooltip_dict: dict, renderable: ModuleInvocationRenderable) -> 
         tooltip_bottom_left[1] + tooltip_height
     ]
 
-    tooltip = TooltipRenderable(
-        title=tooltip_dict['title'],
-        keys=tooltip_dict['keys'],
-        vals=tooltip_dict['vals'],
+    renderable.tooltip = TooltipRenderable(
+        tooltip,
         bottom_left_corner=tooltip_bottom_left,
         top_right_corner=tooltip_top_right
-    )
-
-    renderable.tooltip = tooltip
+    ) 
 
 def _process_graph(renderable: ModuleInvocationRenderable):
     renderable_id_counter = 0
@@ -236,7 +228,7 @@ def _process_graph(renderable: ModuleInvocationRenderable):
     process_graph_renderable(renderable, -1, [])
 
 def _translate_object_nodes_and_edges(
-        renderables: list[ModuleInvocationRenderable], edges: list[OrthoEdge]
+        renderables: list[ModuleInvocationRenderable], edges: list[EdgeRenderable]
     ) -> None:
     """Translate visual components to be centered around the input node."""
 
@@ -421,16 +413,16 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
     def parent_stack_str(parent_stack: list[tuple[str, int]]) -> str:
         return ';'.join([f'{name}::{id}' for name, id in parent_stack])
 
-    def tooltip_str(tooltip: Optional[TooltipRenderable]) -> str:
-        if tooltip is None:
+    def tooltip_str(renderable: Optional[TooltipRenderable]) -> str:
+        if renderable is None:
             return ''
         # String is of the form
         # bl_corn_x::bl_corn_y::tr_corn_x::tr_corn_y!!title!!key1::...!!val1::...
 
-        bl_corn_x, bl_corn_y = tooltip.bottom_left_corner
-        tr_corn_x, tr_corn_y = tooltip.top_right_corner
-        title = tooltip.title
-        keys, vals = tooltip.keys, tooltip.vals
+        bl_corn_x, bl_corn_y = renderable.bottom_left_corner
+        tr_corn_x, tr_corn_y = renderable.top_right_corner
+        title = renderable.tooltip.title
+        keys, vals = renderable.tooltip.keys, renderable.tooltip.vals
 
         return (
             f'{bl_corn_x}::{bl_corn_y}::{tr_corn_x}::{tr_corn_y}!!{title}!!' +
@@ -577,7 +569,7 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
 
     return new_object
 
-def _serialize_edge(edge: OrthoEdge) -> dict:
+def _serialize_edge(edge: EdgeRenderable) -> dict:
     def interpolate_points(points: list[list[float]]):
         # Sometimes lines are very long, which get dissapeared if one end goes off
         # renderer. So we want to interpolate these long edges linearly

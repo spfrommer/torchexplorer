@@ -9,7 +9,7 @@ import networkx as nx
 from functools import partial
 
 from dataclasses import dataclass, field
-from torchexplorer.histogram import IncrementalHistogram
+from torchexplorer.components.histogram import IncrementalHistogram
 
 
 GradFn = torch.autograd.Function
