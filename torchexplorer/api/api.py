@@ -6,11 +6,12 @@ import wandb
 from dataclasses import dataclass
 from typing import Callable, Literal, Optional
 
-from torchexplorer import core, hook, layout, structure
+from torchexplorer import core, hook, layout
 from torchexplorer.api.backend import (
     Backend, DummyBackend, StandaloneBackend, WandbBackend
 )
 from torchexplorer.components.histogram import HistogramParams
+from torchexplorer.structure import structure
 
 
 @dataclass

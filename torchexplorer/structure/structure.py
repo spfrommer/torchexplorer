@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from torch import nn
+from torch.nn import Module
 
 import re
 
@@ -49,15 +49,20 @@ class DownstreamStructureNode:
         return f'(Downstream {node_str}):input {self.input_index}'
 
 
+class StructureExtractor:
+    def __init__(self, module: Module, invocation_id: InvocationId):
+        self.module = module
+
+
 def extract_structure(
-        module: nn.Module, invocation_id: InvocationId=0
+        module: Module, invocation_id: InvocationId=0
     ) -> ModuleInvocationStructure:
     """Module must have had hooks already added and one forward pass."""
 
     structure_id = 0
 
     def _extract_structure(
-            module: nn.Module, invocation_id: InvocationId
+            module: Module, invocation_id: InvocationId
         ) -> ModuleInvocationStructure:
         global log_indent_level
         nonlocal structure_id

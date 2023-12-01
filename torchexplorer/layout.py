@@ -16,7 +16,7 @@ from torchexplorer.components.tooltip import Tooltip
 from torchexplorer.core import (
     ModuleInvocationHistograms, ModuleInvocationStructure, ModuleSharedHistograms
 )
-from torchexplorer.structure import is_input_node, is_output_node
+from torchexplorer.structure.structure import is_input_node, is_output_node
 from torchexplorer.components.histogram import IncrementalHistogram
 
 
