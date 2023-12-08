@@ -9,7 +9,10 @@ from dataclasses import dataclass
 
 import sys
 from loguru import logger
+
 from torchexplorer.components.tooltip import Tooltip
+from torchexplorer import utils
+
 
 config = {'handlers': [{ 'sink': sys.stderr, 'format': '{message}', 'level': 'DEBUG' }]}
 logger.configure(**config)  # type: ignore
@@ -85,10 +88,7 @@ class StructureExtractor:
 
 
         downstreams = []
-        for i, output_gradfn in enumerate(_get_output_gradfns(structure)):
-            if output_gradfn is None:
-                continue
-            
+        for i, output_gradfn in utils.enum_not_none(_get_output_gradfns(structure)):
             node_name = f'Output {i}'
             downstreams.append(DownstreamStructureNode(
                 node=node_name, input_index=i, gradfn=output_gradfn
@@ -121,10 +121,8 @@ class StructureExtractor:
                     
                 if not upstream.node.upstreams_fetched:
                     self.log(f'Q {upstream.node.module.__class__.__name__}', *log_args)
-                    for j, input_gradfn in enumerate(_get_input_gradfns(upstream.node)):
-                        if input_gradfn is None:
-                            continue
-
+                    input_gradfns = _get_input_gradfns(upstream.node)
+                    for j, input_gradfn in utils.enum_not_none(input_gradfns):
                         self.log(f'Queueing upstream {input_gradfn}', *log_args)
                         downstreams.append(DownstreamStructureNode(
                             node=upstream.node, input_index=j, gradfn=input_gradfn

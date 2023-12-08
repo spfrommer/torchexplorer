@@ -7,10 +7,11 @@ from torch import Tensor
 from typing import Callable, Optional, Union
 
 from torchexplorer.core import (
-    ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms,
+    AdaptiveSize, ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms,
     OTensor, GradFn
 )
 from torchexplorer.components.histogram import HistogramParams, IncrementalHistogram
+from torchexplorer import utils
 
 
 def hook(
@@ -91,20 +92,16 @@ def push_histogram_histories(
 
 def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
     def process_tensor(tensor: OTensor) -> OTensor:
-        if tensor is None:
-            return None
         dummy_tensor = torch.tensor(0.0, requires_grad=True)
         return tensor + dummy_tensor if torch.is_floating_point(tensor) else tensor
-    return tuple(process_tensor(tensor) for tensor in tensors)
+    return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
 
 def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
     def gradfns_tensors(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
-        def process_tensor(tensor: OTensor):
-            if tensor is None or not tensor.requires_grad:
-                return None
-            return tensor.grad_fn
+        def process_tensor(tensor: OTensor) -> Optional[GradFn]:
+            return tensor.grad_fn if tensor.requires_grad else None
 
-        return tuple(process_tensor(tensor) for tensor in tensors)
+        return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
     
     def gradfns_next(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
         # Hacky workaround, couldn't figure out import
@@ -120,26 +117,16 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
 
         return gradfns_tensors(tensors)
     
-    def record_sizes(tensors, sizes, invocation_id):
-        if invocation_id not in sizes:
-            sizes[invocation_id] = []
-        invocation_tensor_sizes = sizes[invocation_id]
-
-        for i, tensor in enumerate(tensors):
-            if tensor is None:
-                continue
-
+    def record_sizes(tensors: tuple[OTensor], tensor_sizes: list[AdaptiveSize]) -> None:
+        for i, tensor in utils.enum_not_none(tensors):
             shape = list(tensor.shape)
 
-            if len(invocation_tensor_sizes) <= i:
-                invocation_tensor_sizes.append(shape)
-            else:
-                if invocation_tensor_sizes[i] is None:
-                    continue
-                
-                stored_shape = invocation_tensor_sizes[i]
+            if len(tensor_sizes) <= i:
+                tensor_sizes.append(shape)
+            elif tensor_sizes[i] is not None:
+                stored_shape = tensor_sizes[i]
                 if len(shape) != len(stored_shape):
-                    invocation_tensor_sizes[i] = None
+                    tensor_sizes[i] = None
                 
                 # TODO: with graphviz caching, this actually doesn't need to run
                 # since only the first pass sizes are stored.
@@ -194,23 +181,18 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
             (gradfns_next(inputs), 'input_index'),
             (gradfns_tensors(outputs_tuple), 'output_index')
         ]:
-            for i, gradfn in enumerate(io_gradfns):
-                if gradfn is None:
-                    continue
-
+            for i, gradfn in utils.enum_not_none(io_gradfns):
                 assert isinstance(gradfn.metadata, dict)
 
                 gradfn.metadata['module'] = module
                 gradfn.metadata[index_name] = i
                 gradfn.metadata['invocation_id'] = invocation_id
-        
 
         # Record input / output sizes
         for (tensors, sizes) in [
             (inputs, metadata.input_sizes), (outputs_tuple, metadata.output_sizes)
         ]:
-            record_sizes(tensors, sizes, invocation_id)
-
+            record_sizes(tensors, sizes.setdefault(invocation_id, []))
 
         return outputs_tuple[0] if single_output else outputs_tuple
 
@@ -299,13 +281,10 @@ def _add_io_grad_histogram_hooks(
             [(grads_input_tuple, inv_hists.input_hists),
              (grads_output_tuple, inv_hists.output_hists)]
         ):
-            for i, tensor in enumerate(tensors):
-                if len(hists) <= i:
-                    hists.append(IncrementalHistogram(hist_params))
+            while len(hists) < len(tensors):
+                hists.append(IncrementalHistogram(hist_params))
 
-                if tensor is None:
-                    continue
-
+            for i, tensor in utils.enum_not_none(tensors):
                 if len(tensor.shape) == 0:
                     tensor = tensor.reshape(1, 1)
                 tensor = tensor.reshape(tensor.shape[0], -1)
