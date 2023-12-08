@@ -1,5 +1,5 @@
+from __future__ import annotations
 import re
-import ast
 from torch.nn import Module, ModuleList, ModuleDict
 
 from torchexplorer.core import InvocationId
@@ -11,14 +11,6 @@ class Tooltip:
         self.title = title
         self.keys = keys
         self.vals = vals
-
-    def to_dict_string(self) -> str:
-        return str({'title': self.title, 'keys': self.keys, 'vals': self.vals})
-
-    @classmethod
-    def from_dict_string(cls, s: str) -> 'Tooltip':
-        d = ast.literal_eval(s)
-        return cls(d['title'], d['keys'], d['vals'])
     
     @classmethod
     def create(

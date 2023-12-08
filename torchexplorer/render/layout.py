@@ -19,7 +19,6 @@ from torchexplorer.render.structs import (
 )
 
 
-
 def layout(
         structure: ModuleInvocationStructure, cache: Optional[dict] = None
     ) -> tuple[ModuleInvocationRenderable, dict]:
@@ -44,9 +43,6 @@ def _layout_into(
         cached_structure: Optional[ModuleInvocationStructure] = None
     ):
 
-    if not hasattr(structure, 'inner_graph'):
-        return
-
     json_data = _get_graphviz_json_with_caching(structure, cached_structure)
 
     for object in json_data['objects']:
@@ -63,10 +59,9 @@ def _layout_into(
             object_struct = structure.get_inner_structure_from_id(structure_id)
             assert object_struct is not None
 
-            tooltip = Tooltip.create(
+            _add_tooltip(inner_renderable, Tooltip.create(
                 object_struct.module, structure.module, object_struct.invocation_id
-            )
-            _add_tooltip(tooltip, inner_renderable)
+            ))
 
             metadata = object_struct.module_metadata()
 
@@ -95,7 +90,7 @@ def _layout_into(
 
     _translate_inner_renderables(renderable)
 
-def _add_tooltip(tooltip: Tooltip, renderable: ModuleInvocationRenderable) -> None:
+def _add_tooltip(renderable: ModuleInvocationRenderable, tooltip: Tooltip) -> None:
     tooltip_title_size, tooltip_font_size = 14, 11
     def _handle_string(str, truncate=False, title=False):
         font_size = tooltip_title_size if title else tooltip_font_size
@@ -246,7 +241,7 @@ def _unconstrain_skip_connections(graph: nx.DiGraph) -> None:
     """A more aesthetic skip connection layout by unconstraining them in graphviz."""
 
     for edge in graph.edges:
-        def avoid_edge_weight(u, v, d):
+        def avoid_edge_weight(u, v, _):
             return 1 if (u == edge[0] and v == edge[1]) else 0
         path = nx.shortest_path(graph, edge[0], edge[1], weight=avoid_edge_weight)
         if len(path) > 2:
