@@ -161,7 +161,9 @@ def _add_tracking_hooks(module: Module, should_log_callable: Callable):
     module.apply(add_hooks)
 
 def _add_size_record_hooks(module: Module, should_log_callable: Callable):
-    def record_sizes(tensors: tuple[OTensor], tensor_sizes: list[AdaptiveSize]) -> None:
+    def record_sizes(
+            tensors: tuple[OTensor, ...], tensor_sizes: list[AdaptiveSize]
+        ) -> None:
         for i, tensor in utils.enum_not_none(tensors):
             shape = list(tensor.shape)
 
@@ -169,6 +171,7 @@ def _add_size_record_hooks(module: Module, should_log_callable: Callable):
                 tensor_sizes.append(shape)
             elif tensor_sizes[i] is not None:
                 stored_shape = tensor_sizes[i]
+                assert stored_shape is not None
                 if len(shape) != len(stored_shape):
                     tensor_sizes[i] = None
                 
@@ -279,22 +282,22 @@ def _ensure_tuple(
     return ret_x, is_single # type: ignore 
 
 def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
-    def process_tensor(tensor: OTensor) -> OTensor:
+    def process_tensor(tensor: Tensor) -> OTensor:
         dummy_tensor = torch.tensor(0.0, requires_grad=True)
         return tensor + dummy_tensor if torch.is_floating_point(tensor) else tensor
     return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
 
 def _get_tensor_gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
-    def process_tensor(tensor: OTensor) -> Optional[GradFn]:
-        return tensor.grad_fn if tensor.requires_grad else None
+    def process_tensor(tensor: Tensor) -> Optional[GradFn]:
+        return tensor.grad_fn if tensor.requires_grad else None # type: ignore
 
     return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
 
 def _get_next_gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
     # Hacky workaround, couldn't figure out import
     # Check if all gradfns are the same 'BackwardHookFunctionBackward'
-    is_bh_backward = 'BackwardHookFunctionBackward' in str(tensors[0].grad_fn)
-    if tensors[0] is not None and is_bh_backward:
+    backhook_class = 'BackwardHookFunctionBackward'
+    if tensors[0] is not None and backhook_class in str(tensors[0].grad_fn):
         # Multiple inputs will share a BackwardHookFunctionBackward gradfn.
         # To tease apart multiple input nodes in the explorer, we need to go
         # one level deeper.

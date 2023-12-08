@@ -1,6 +1,6 @@
 from __future__ import annotations
 import string
-from typing import Any, Optional, Union
+from typing import Any, Iterable, Optional, Union
 import numpy as np
 
 from torchexplorer import utils
@@ -192,10 +192,10 @@ def _serialize_edge(edge: EdgeRenderable) -> dict:
         'arrowhead_points': points_str(edge.arrowhead_points + end_of_path),
     }
 
-def _serialize_list(l: list[Any]) -> str:
+def _serialize_list(l: Iterable[Any]) -> str:
     return '::'.join([str(x) for x in l])
 
-def _serialize_lists_nest2(l: list[list[Any]]) -> str:
+def _serialize_lists_nest2(l: Iterable[Iterable[Any]]) -> str:
     return ';'.join([_serialize_list(inner_l) for inner_l in l])
 
 def _mid_join(l: list[str]) -> str:

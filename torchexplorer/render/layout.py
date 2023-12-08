@@ -153,7 +153,7 @@ def _process_graph(renderable: ModuleInvocationRenderable):
 
 def _translate_inner_renderables(renderable: ModuleInvocationRenderable) -> None:
     """Translate visual components to be centered around the input node."""
-    target_input_pos = [0, 0]  # Based on where vega spec expects input to be
+    target_input_pos = [0.0, 0.0]  # Based on where vega spec expects input to be
 
     input_centers = []
     for r in renderable.inner_graph_renderables:
