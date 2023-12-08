@@ -216,7 +216,7 @@
         {
           "type": "formula",
           "as": "child_ids",
-          "expr": "split(datum.child_ids, ';')"
+          "expr": "split(datum.child_ids, '::')"
         },
         {
           "type": "formula",

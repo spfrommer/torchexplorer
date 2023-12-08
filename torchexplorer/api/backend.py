@@ -29,7 +29,7 @@ class WandbBackend(Backend):
         explorer_table, fields = layout.wandb_table(renderable)
 
         chart = wandb.plot_table(
-            vega_spec_name='spfrom_team/torchexplorer_v2a',
+            vega_spec_name='spfrom_team/torchexplorer_v2b',
             data_table=explorer_table,
             fields=fields,
             string_fields={}

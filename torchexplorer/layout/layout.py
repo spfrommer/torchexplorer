@@ -3,7 +3,7 @@ import copy
 
 import json
 import string
-from typing import Optional, Union
+from typing import Any, Optional, Union
 import numpy as np
 import networkx as nx
 from subprocess import Popen, PIPE
@@ -143,44 +143,23 @@ def _layout_into(
     )
 
 def _add_tooltip(tooltip: Tooltip, renderable: ModuleInvocationRenderable) -> None:
-    tooltip_title_font_size, tooltip_font_size = 14, 11
-    key_truncate_width = 70
-    def truncate_string_width(st, truncate=False, title=False):
-        # Adapted from https://stackoverflow.com/questions/16007743/roughly-approximate-the-width-of-a-string-of-text-in-python
-        nonlocal key_truncate_width
-
-        font_size = tooltip_title_font_size if title else tooltip_font_size
-        truncate_width = key_truncate_width
-
-        size_to_pixels = (font_size / 12) * 16 * (6 / 1000.0) 
-        truncate_width = truncate_width / size_to_pixels
-        size = 0 # in milinches
-        for i, s in enumerate(st):
-            if s in 'lij|\' ': size += 37
-            elif s in '![]fI.,:;/\\t': size += 50
-            elif s in '`-(){}r"': size += 60
-            elif s in '*^zcsJkvxy': size += 85
-            elif s in 'aebdhnopqug#$L+<>=?_~FZT' + string.digits: size += 95
-            elif s in 'BSPEAKVXY&UwNRCHD': size += 112
-            elif s in 'QGOMm%W@': size += 135
-            else: size += 50
-
-            if size >= truncate_width and truncate:
-                return (st[:max(0, i - 1)] + '...'), size_to_pixels * (size + 150)
-
-        return st, size_to_pixels * size
+    tooltip_title_size, tooltip_font_size = 14, 11
+    def _truncate_string_width(str, truncate=False, title=False):
+        font_size = tooltip_title_size if title else tooltip_font_size
+        truncate_width = 70
+        return truncate_string_width(str, font_size, truncate_width, truncate)
 
     node_bottom_left = np.array(renderable.bottom_left_corner)
     node_top_right = np.array(renderable.top_right_corner)
     node_center_y = (node_bottom_left[1] + node_top_right[1]) / 2
 
     for i, key in enumerate(tooltip.keys):
-        tooltip.keys[i] = truncate_string_width(key, True)[0]
+        tooltip.keys[i] = _truncate_string_width(key, True)[0]
 
 
-    line_widths = [truncate_string_width(tooltip.title, False, True)[1]]
+    line_widths = [_truncate_string_width(tooltip.title, False, True)[1]]
     for key, val in zip(tooltip.keys, tooltip.vals):
-        line_widths.append(truncate_string_width(f'{key}{val}', False)[1])
+        line_widths.append(_truncate_string_width(f'{key}{val}', False)[1])
     
     tooltip_width = max(line_widths) * 0.95 + 20
     tooltip_lines = 1 + len(tooltip.keys)
@@ -188,8 +167,7 @@ def _add_tooltip(tooltip: Tooltip, renderable: ModuleInvocationRenderable) -> No
 
     tooltip_bottom_left = [node_top_right[0] + 20, node_center_y - tooltip_height / 2]
     tooltip_top_right = [
-        tooltip_bottom_left[0] + tooltip_width,
-        tooltip_bottom_left[1] + tooltip_height
+        tooltip_bottom_left[0] + tooltip_width, tooltip_bottom_left[1] + tooltip_height
     ]
 
     renderable.tooltip = TooltipRenderable(
@@ -325,15 +303,6 @@ def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> d
     p = Popen(['dot', f'-T{format}'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
     stdout_data, err = p.communicate(input=dot_source.encode())
 
-    # if isinstance(structure.module, nn.TransformerEncoderLayer):
-    #     p = Popen(
-    #         ['dot', f'-Tpdf', '-ographviz/test.pdf'],
-    #         stdout=PIPE, stdin=PIPE, stderr=PIPE
-    #     )
-    #     p.communicate(input=dot_source.encode())
-    #     with open('graphviz/test.dot', 'w') as f:
-    #         f.write(dot_source)
-
     if len(err) > 0:
         raise RuntimeError(
             f'Error in dot subprocess:\n{err.decode()}\n'
@@ -348,10 +317,7 @@ def _unconstrain_skip_connections(graph: nx.DiGraph) -> None:
 
     for edge in graph.edges:
         def avoid_edge_weight(u, v, d):
-            if u == edge[0] and v == edge[1]:
-                return 1
-            return 0
-
+            return 1 if (u == edge[0] and v == edge[1]) else 0
         path = nx.shortest_path(graph, edge[0], edge[1], weight=avoid_edge_weight)
         if len(path) > 2:
             graph[edge[0]][edge[1]]['constraint'] = False
@@ -411,7 +377,7 @@ def _serialize_renderable(renderable: ModuleInvocationRenderable) -> dict:
 
 def _serialize_node(r: ModuleInvocationRenderable) -> dict:
     def parent_stack_str(parent_stack: list[tuple[str, int]]) -> str:
-        return ';'.join([f'{name}::{id}' for name, id in parent_stack])
+        return _serialize_lists_nest2(parent_stack)
 
     def tooltip_str(renderable: Optional[TooltipRenderable]) -> str:
         if renderable is None:
@@ -419,55 +385,29 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         # String is of the form
         # bl_corn_x::bl_corn_y::tr_corn_x::tr_corn_y!!title!!key1::...!!val1::...
 
-        bl_corn_x, bl_corn_y = renderable.bottom_left_corner
-        tr_corn_x, tr_corn_y = renderable.top_right_corner
+        bl_corn, tr_corn = renderable.bottom_left_corner, renderable.top_right_corner
         title = renderable.tooltip.title
         keys, vals = renderable.tooltip.keys, renderable.tooltip.vals
 
-        return (
-            f'{bl_corn_x}::{bl_corn_y}::{tr_corn_x}::{tr_corn_y}!!{title}!!' +
-            '::'.join(keys) + '!!' + '::'.join(vals)
+        corners_str = _serialize_list(bl_corn + tr_corn)
+        return _mid_join(
+            [corners_str, title, _serialize_list(keys), _serialize_list(vals)]
         )
 
 
     def child_ids_str(child_ids: list[int]) -> str:
-        return ';'.join([str(id) for id in child_ids])
-    
-    def eformat(num, include_pm=True) -> str:
-        # Adapted from https://stackoverflow.com/questions/9910972/number-of-digits-in-exponent
-        prec, exp_digits = 1, 1
+        return _serialize_list(child_ids)
 
-        if abs(num) < 100 and abs(num) > 1.0:
-            string = str(num) if isinstance(num, int) else f'{num:.1f}'
-        elif abs(num) < 100 and abs(num) > 0.1:
-            string = f'{num:.2f}'
-        else:
-            s = '%.*e' % (prec, num)
-            mantissa, exp = s.split('e')
-            if include_pm:
-                # add 1 to digits as 1 is taken by sign +/-
-                string = '%se%+0*d' % (mantissa, exp_digits+1, int(exp))
-            else:
-                string = '%se%0*d' % (mantissa, exp_digits, int(exp))
-
-        # Make minus signs longer to be more visible
-        return string.replace('-', '–') 
-
-    def hist_str(histogram: IncrementalHistogram) -> str:
+    def hist_strs(histogram: IncrementalHistogram) -> list[str]:
         history_bins, history_times = histogram.subsample_history()
-        minmax = f'{eformat(histogram.min)}::{eformat(histogram.max)}'
-        minmax_float = f'{histogram.min}::{histogram.max}'
-        times_minmax = f'{eformat(history_times[0])}::{eformat(history_times[-1])}'
-        times_str = '::'.join([str(t) for t in history_times])
-        return (
-            f'{minmax}!!{minmax_float}!!{histogram.params.time_unit}' + 
-            f'!!{times_minmax}!!{times_str}!!' +
-            ';'.join([
-                '::'.join(
-                    [str(x) for x in bin_counts]
-                ) for bin_counts in history_bins
-            ])
-        )
+        return [
+            _serialize_list([eformat(histogram.min), eformat(histogram.max)]),
+            _serialize_list([histogram.min, histogram.max]),
+            histogram.params.time_unit,
+            _serialize_list([eformat(history_times[0]), eformat(history_times[-1])]),
+            _serialize_list(history_times),
+            _serialize_lists_nest2(history_bins)
+        ]
 
     # Each histogram is serialized as a string:
     # name!!min::max!!min_float::max_float!!time_unit!!mintime::maxtime!!time1::time2::...!!bin1count,bin2count;bin1count,...
@@ -477,18 +417,16 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
     # Redundantly include mintime and maxtime because those need fancy formatting
 
     def hist_list_str(hists: list[IncrementalHistogram], prefixes: list[str]) -> str:
-        histories = [
-            f'{prefixes[i]}!!{hist_str(h)}'
+        return _top_join([
+            _mid_join([prefixes[i]] + hist_strs(h))
             for i, h in enumerate(hists) if len(h.history_bins) > 0
-        ] 
-        return '|'.join(histories)
+        ] )
 
     def hist_dict_str(hists: dict[str, IncrementalHistogram]) -> str:
-        histories = [
-            f'{k}!!{hist_str(hists[k])}'
+        return _top_join([
+            _mid_join([k] + hist_strs(hists[k]))
             for k in sorted(hists.keys()) if len(hists[k].history_bins) > 0
-        ]
-        return '|'.join(histories)
+        ])
 
     def interleave_and_serialize_list(
             raw_hists: Optional[list], grad_hists: Optional[list],
@@ -589,8 +527,7 @@ def _serialize_edge(edge: EdgeRenderable) -> dict:
         return points
 
     def points_str(points: list[list[float]]) -> str:
-        points = interpolate_points(points)
-        return ';'.join(['::'.join([str(x) for x in point]) for point in points])
+        return _serialize_lists_nest2(interpolate_points(points))
 
     # Makes things easier in vega
     end_of_path = [[-10000.0, -10000.0]]
@@ -600,3 +537,55 @@ def _serialize_edge(edge: EdgeRenderable) -> dict:
         'path_points': points_str(edge.path_points + end_of_path),
         'arrowhead_points': points_str(edge.arrowhead_points + end_of_path),
     }
+
+def _serialize_list(l: list[Any]) -> str:
+    return '::'.join([str(x) for x in l])
+
+def _serialize_lists_nest2(l: list[list[Any]]) -> str:
+    return ';'.join([_serialize_list(inner_l) for inner_l in l])
+
+def _mid_join(l: list[str]) -> str:
+    return '!!'.join(l)
+
+def _top_join(l: list[str]) -> str:
+    return '|'.join(l)
+
+def truncate_string_width(st, font_size, truncate_width, truncate):
+    # Adapted from https://stackoverflow.com/questions/16007743/roughly-approximate-the-width-of-a-string-of-text-in-python
+    size_to_pixels = (font_size / 12) * 16 * (6 / 1000.0) 
+    truncate_width = truncate_width / size_to_pixels
+    size = 0 # in milinches
+    for i, s in enumerate(st):
+        if s in 'lij|\' ': size += 37
+        elif s in '![]fI.,:;/\\t': size += 50
+        elif s in '`-(){}r"': size += 60
+        elif s in '*^zcsJkvxy': size += 85
+        elif s in 'aebdhnopqug#$L+<>=?_~FZT' + string.digits: size += 95
+        elif s in 'BSPEAKVXY&UwNRCHD': size += 112
+        elif s in 'QGOMm%W@': size += 135
+        else: size += 50
+
+        if size >= truncate_width and truncate:
+            return (st[:max(0, i - 1)] + '...'), size_to_pixels * (size + 150)
+
+    return st, size_to_pixels * size
+    
+def eformat(num, include_pm=True) -> str:
+    # Adapted from https://stackoverflow.com/questions/9910972/number-of-digits-in-exponent
+    prec, exp_digits = 1, 1
+
+    if abs(num) < 100 and abs(num) > 1.0:
+        string = str(num) if isinstance(num, int) else f'{num:.1f}'
+    elif abs(num) < 100 and abs(num) > 0.1:
+        string = f'{num:.2f}'
+    else:
+        s = '%.*e' % (prec, num)
+        mantissa, exp = s.split('e')
+        if include_pm:
+            # add 1 to digits as 1 is taken by sign +/-
+            string = '%se%+0*d' % (mantissa, exp_digits+1, int(exp))
+        else:
+            string = '%se%0*d' % (mantissa, exp_digits, int(exp))
+
+    # Make minus signs longer to be more visible
+    return string.replace('-', '–') 
