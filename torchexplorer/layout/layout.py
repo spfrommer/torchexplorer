@@ -11,6 +11,7 @@ from subprocess import Popen, PIPE
 from dataclasses import dataclass, field
 
 import wandb
+from torchexplorer import utils
 from torchexplorer.components.tooltip import Tooltip
 
 from torchexplorer.core import (
@@ -138,28 +139,26 @@ def _layout_into(
                 upstream_output_index=int(edge['upstream_output_index']),
             ))
 
-    _translate_object_nodes_and_edges(
-        renderable.inner_graph_renderables, renderable.inner_graph_edges
-    )
+    _translate_inner_renderables(renderable)
 
 def _add_tooltip(tooltip: Tooltip, renderable: ModuleInvocationRenderable) -> None:
     tooltip_title_size, tooltip_font_size = 14, 11
-    def _truncate_string_width(str, truncate=False, title=False):
+    def _handle_string(str, truncate=False, title=False):
         font_size = tooltip_title_size if title else tooltip_font_size
         truncate_width = 70
-        return truncate_string_width(str, font_size, truncate_width, truncate)
+        return _truncate_string_width(str, font_size, truncate_width, truncate)
 
     node_bottom_left = np.array(renderable.bottom_left_corner)
     node_top_right = np.array(renderable.top_right_corner)
     node_center_y = (node_bottom_left[1] + node_top_right[1]) / 2
 
     for i, key in enumerate(tooltip.keys):
-        tooltip.keys[i] = _truncate_string_width(key, True)[0]
+        tooltip.keys[i] = _handle_string(key, True)[0]
 
 
-    line_widths = [_truncate_string_width(tooltip.title, False, True)[1]]
+    line_widths = [_handle_string(tooltip.title, False, True)[1]]
     for key, val in zip(tooltip.keys, tooltip.vals):
-        line_widths.append(_truncate_string_width(f'{key}{val}', False)[1])
+        line_widths.append(_handle_string(f'{key}{val}', False)[1])
     
     tooltip_width = max(line_widths) * 0.95 + 20
     tooltip_lines = 1 + len(tooltip.keys)
@@ -205,50 +204,30 @@ def _process_graph(renderable: ModuleInvocationRenderable):
 
     process_graph_renderable(renderable, -1, [])
 
-def _translate_object_nodes_and_edges(
-        renderables: list[ModuleInvocationRenderable], edges: list[EdgeRenderable]
-    ) -> None:
+def _translate_inner_renderables(renderable: ModuleInvocationRenderable) -> None:
     """Translate visual components to be centered around the input node."""
-
-    # Based on the vega plot dimensions
-    target_input_pos = [0, 0]
-    trans = None
+    target_input_pos = [0, 0]  # Based on where vega spec expects input to be
 
     input_centers = []
-    for renderable in renderables:
-        if is_input_node(renderable.display_name):
-            input_centers.append(np.array([
-                (renderable.bottom_left_corner[0] + renderable.top_right_corner[0]) / 2,
-                (renderable.bottom_left_corner[1] + renderable.top_right_corner[1]) / 2,
-            ]))
+    for r in renderable.inner_graph_renderables:
+        if is_input_node(r.display_name):
+            input_centers.append(_center(r))
 
     center = np.mean(np.array(input_centers), axis=0)
     trans = [target_input_pos[0] - center[0], target_input_pos[1] - center[1]]
-    
-    assert trans is not None
 
-    def apply_translation_renderable(
-            renderable: Union[ModuleInvocationRenderable, TooltipRenderable]
-        ):
-        renderable.bottom_left_corner[0] += trans[0]
-        renderable.bottom_left_corner[1] += trans[1]
-        renderable.top_right_corner[0] += trans[0]
-        renderable.top_right_corner[1] += trans[1]
+    def apply_translation(r):
+        r.bottom_left_corner = utils.list_add(r.bottom_left_corner, trans)
+        r.top_right_corner = utils.list_add(r.top_right_corner, trans)
 
+    for r in renderable.inner_graph_renderables:
+        apply_translation(r)
+        if r.tooltip is not None:
+            apply_translation(r.tooltip)
 
-    for renderable in renderables:
-        apply_translation_renderable(renderable)
-        if renderable.tooltip is not None:
-            apply_translation_renderable(renderable.tooltip)
-    
-
-    for edge in edges:
-        edge.path_points = [
-            [p[0] + trans[0], p[1] + trans[1]] for p in edge.path_points
-        ]
-        edge.arrowhead_points = [
-            [p[0] + trans[0], p[1] + trans[1]] for p in edge.arrowhead_points
-        ]
+    for e in renderable.inner_graph_edges:
+        e.path_points = [utils.list_add(p, trans) for p in e.path_points]
+        e.arrowhead_points = [utils.list_add(p, trans) for p in e.arrowhead_points]
 
 def _preprocess_io_names(structure: ModuleInvocationStructure) -> None:
     multiple_inputs = structure.inner_graph.has_node('Input 1')
@@ -322,7 +301,6 @@ def _unconstrain_skip_connections(graph: nx.DiGraph) -> None:
         if len(path) > 2:
             graph[edge[0]][edge[1]]['constraint'] = False
 
-    
 
 def wandb_table(
         renderable: ModuleInvocationRenderable
@@ -376,15 +354,9 @@ def _serialize_renderable(renderable: ModuleInvocationRenderable) -> dict:
     return {'nodes': nodes, 'edges': edges}
 
 def _serialize_node(r: ModuleInvocationRenderable) -> dict:
-    def parent_stack_str(parent_stack: list[tuple[str, int]]) -> str:
-        return _serialize_lists_nest2(parent_stack)
-
     def tooltip_str(renderable: Optional[TooltipRenderable]) -> str:
         if renderable is None:
             return ''
-        # String is of the form
-        # bl_corn_x::bl_corn_y::tr_corn_x::tr_corn_y!!title!!key1::...!!val1::...
-
         bl_corn, tr_corn = renderable.bottom_left_corner, renderable.top_right_corner
         title = renderable.tooltip.title
         keys, vals = renderable.tooltip.keys, renderable.tooltip.vals
@@ -394,39 +366,16 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
             [corners_str, title, _serialize_list(keys), _serialize_list(vals)]
         )
 
-
-    def child_ids_str(child_ids: list[int]) -> str:
-        return _serialize_list(child_ids)
-
     def hist_strs(histogram: IncrementalHistogram) -> list[str]:
         history_bins, history_times = histogram.subsample_history()
         return [
-            _serialize_list([eformat(histogram.min), eformat(histogram.max)]),
+            _serialize_list([_eformat(histogram.min), _eformat(histogram.max)]),
             _serialize_list([histogram.min, histogram.max]),
             histogram.params.time_unit,
-            _serialize_list([eformat(history_times[0]), eformat(history_times[-1])]),
+            _serialize_list([_eformat(history_times[0]), _eformat(history_times[-1])]),
             _serialize_list(history_times),
             _serialize_lists_nest2(history_bins)
         ]
-
-    # Each histogram is serialized as a string:
-    # name!!min::max!!min_float::max_float!!time_unit!!mintime::maxtime!!time1::time2::...!!bin1count,bin2count;bin1count,...
-    # Repeated for the number of bins and the length of the history
-    # Then these are all concatenated together with pipe |
-    # time_unit is "step" or "epoch"
-    # Redundantly include mintime and maxtime because those need fancy formatting
-
-    def hist_list_str(hists: list[IncrementalHistogram], prefixes: list[str]) -> str:
-        return _top_join([
-            _mid_join([prefixes[i]] + hist_strs(h))
-            for i, h in enumerate(hists) if len(h.history_bins) > 0
-        ] )
-
-    def hist_dict_str(hists: dict[str, IncrementalHistogram]) -> str:
-        return _top_join([
-            _mid_join([k] + hist_strs(hists[k]))
-            for k in sorted(hists.keys()) if len(hists[k].history_bins) > 0
-        ])
 
     def interleave_and_serialize_list(
             raw_hists: Optional[list], grad_hists: Optional[list],
@@ -436,21 +385,22 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         raw_hists = [] if raw_hists is None else raw_hists
         grad_hists = [] if grad_hists is None else grad_hists
 
-        def interleave(l1, l2):
-            return [val for pair in zip(l1, l2) for val in pair]
-
         raw_prefixes = [f'{prefix} {i}' for i in range(len(raw_hists))]
         grad_prefixes = [f'{prefix} {i} ({suffix})' for i in range(len(grad_hists))]
 
         if len(raw_hists) == len(grad_hists):
-            joined_hists = interleave(raw_hists, grad_hists)
-            joined_prefixes = interleave(raw_prefixes, grad_prefixes)
+            joined_hists = utils.interleave(raw_hists, grad_hists)
+            joined_prefixes = utils.interleave(raw_prefixes, grad_prefixes)
         else:
             assert len(raw_hists) == 0 or len(grad_hists) == 0
             joined_hists = raw_hists + grad_hists
             joined_prefixes = raw_prefixes + grad_prefixes
 
-        return hist_list_str(joined_hists, joined_prefixes)
+        return _top_join([
+            _mid_join([joined_prefixes[i]] + hist_strs(h))
+            for i, h in enumerate(joined_hists)
+            if len(h.history_bins) > 0
+        ])
 
     def interleave_and_serialize_dict(
             raw_hists: Optional[dict], grad_hists: Optional[dict]
@@ -463,7 +413,11 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         # The hist_dict_str sorts alphabetically which does the interleaving
         joined_hists = {**raw_hists, **grad_hists}
 
-        return hist_dict_str(joined_hists)
+        return _top_join([
+            _mid_join([k] + hist_strs(joined_hists[k]))
+            for k in sorted(joined_hists.keys())
+            if len(joined_hists[k].history_bins) > 0
+        ])
     
     def renderable_resolve(attr1: str, attr2: str):
         if getattr(r, attr1) is not None:
@@ -491,8 +445,8 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
 
     new_object = {
         'id': r.id,
-        'child_ids': child_ids_str(r.child_ids),
-        'parent_stack': parent_stack_str(r.parent_stack),
+        'child_ids': _serialize_list(r.child_ids),
+        'parent_stack': _serialize_lists_nest2(r.parent_stack),
         'display_name': r.display_name,
         'tooltip': tooltip_str(r.tooltip),
         'input_histograms': input_hists_str,
@@ -550,7 +504,7 @@ def _mid_join(l: list[str]) -> str:
 def _top_join(l: list[str]) -> str:
     return '|'.join(l)
 
-def truncate_string_width(st, font_size, truncate_width, truncate):
+def _truncate_string_width(st, font_size, truncate_width, truncate):
     # Adapted from https://stackoverflow.com/questions/16007743/roughly-approximate-the-width-of-a-string-of-text-in-python
     size_to_pixels = (font_size / 12) * 16 * (6 / 1000.0) 
     truncate_width = truncate_width / size_to_pixels
@@ -570,7 +524,7 @@ def truncate_string_width(st, font_size, truncate_width, truncate):
 
     return st, size_to_pixels * size
     
-def eformat(num, include_pm=True) -> str:
+def _eformat(num, include_pm=True) -> str:
     # Adapted from https://stackoverflow.com/questions/9910972/number-of-digits-in-exponent
     prec, exp_digits = 1, 1
 
@@ -589,3 +543,9 @@ def eformat(num, include_pm=True) -> str:
 
     # Make minus signs longer to be more visible
     return string.replace('-', '–') 
+
+def _center(r: Union[ModuleInvocationRenderable, TooltipRenderable]) -> list[float]:
+    return [
+        (r.bottom_left_corner[0] + r.top_right_corner[0]) / 2,
+        (r.bottom_left_corner[1] + r.top_right_corner[1]) / 2
+    ]
