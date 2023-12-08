@@ -7,11 +7,12 @@ import threading
 import wandb
 import sys
 
-from torchexplorer.layout import layout
+from torchexplorer.render import serialize
+from torchexplorer.render.structs import ModuleInvocationRenderable
 
 
 class Backend():
-    def update(self, renderable: layout.ModuleInvocationRenderable):
+    def update(self, renderable: ModuleInvocationRenderable):
         raise NotImplementedError()
 
 
@@ -22,11 +23,11 @@ class WandbBackend(Backend):
         self.delete_counter = 0
         self.delete_old_artifact_lag = 10
 
-    def update(self, renderable: layout.ModuleInvocationRenderable):
+    def update(self, renderable: ModuleInvocationRenderable):
         if wandb.run is None:
             raise ValueError('Must call `wandb.init` before `torchexplorer.watch`')
 
-        explorer_table, fields = layout.wandb_table(renderable)
+        explorer_table, fields = self._wandb_table(renderable)
 
         chart = wandb.plot_table(
             vega_spec_name='spfrom_team/torchexplorer_v2b',
@@ -40,6 +41,17 @@ class WandbBackend(Backend):
         self._delete_old_artifacts()
         
         self.update_counter += 1
+
+    def _wandb_table(
+            self, renderable: ModuleInvocationRenderable
+        ) -> tuple[wandb.Table, dict[str, str]]:
+
+        rows = serialize.serialize_rows(renderable)
+        fields = {key:key for key in rows[0]}
+        keys = fields.keys() 
+        data = [[row[key] for key in keys] for row in rows]
+        table = wandb.Table(data=data, columns=list(keys))
+        return table, fields
     
     def _delete_old_artifacts(self):
         lagged_version = self.update_counter - self.delete_old_artifact_lag
@@ -83,8 +95,8 @@ class StandaloneBackend(Backend):
         app.vega_spec_path = target_vega_path
         threading.Thread(target=lambda: app.app.run(port=standalone_port)).start()
 
-    def update(self, renderable: layout.ModuleInvocationRenderable):
-        data = layout.serialized_rows(renderable)
+    def update(self, renderable: ModuleInvocationRenderable):
+        data = serialize.serialize_rows(renderable)
         target_app_path = os.path.abspath(self.standalone_dir)
 
         data_path = os.path.join(target_app_path, 'data', 'data.json')
@@ -96,5 +108,5 @@ class DummyBackend(Backend):
     def __init__(self):
         pass
 
-    def update(self, renderable: layout.ModuleInvocationRenderable):
+    def update(self, renderable: ModuleInvocationRenderable):
         pass

@@ -3,25 +3,20 @@ import copy
 
 import json
 import string
-from typing import Any, Optional, Union
+from typing import Optional, Union
 import numpy as np
 import networkx as nx
 from subprocess import Popen, PIPE
 
-from dataclasses import dataclass, field
-
-import wandb
 from torchexplorer import utils
 from torchexplorer.components.tooltip import Tooltip
 
 from torchexplorer.core import ModuleInvocationStructure
 from torchexplorer.structure.structure import is_input_node, is_io_node
 
-from torchexplorer.layout.structs import (
+from torchexplorer.render.structs import (
     EdgeRenderable, TooltipRenderable, ModuleInvocationRenderable
 )
-
-from torchexplorer.layout import serialize
 
 
 
@@ -256,18 +251,6 @@ def _unconstrain_skip_connections(graph: nx.DiGraph) -> None:
         path = nx.shortest_path(graph, edge[0], edge[1], weight=avoid_edge_weight)
         if len(path) > 2:
             graph[edge[0]][edge[1]]['constraint'] = False
-
-
-def wandb_table(
-        renderable: ModuleInvocationRenderable
-    ) -> tuple[wandb.Table, dict[str, str]]:
-
-    rows = serialize.serialized_rows(renderable)
-    fields = {key:key for key in rows[0]}
-    keys = fields.keys() 
-    data = [[row[key] for key in keys] for row in rows]
-    table = wandb.Table(data=data, columns=list(keys))
-    return table, fields
 
 
 def _truncate_string_width(st, font_size, truncate_width, truncate):

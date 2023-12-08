@@ -8,7 +8,7 @@ from torch import optim
 from torch import nn
 import pyperclip
 
-from torchexplorer.layout import layout
+from torchexplorer.render import layout
 from torchexplorer.api import api
 
 
@@ -70,7 +70,7 @@ def main():
         optimizer.zero_grad()
 
     renderable = layout.layout(structure_wrapper.structure)[0]
-    rendered_layout = layout.serialize.serialized_rows(renderable)
+    rendered_layout = layout.serialize.serialize_rows(renderable)
 
     def custom_json(d: dict):
         string = json.dumps(d, cls=CompactJSONEncoder, indent=2)

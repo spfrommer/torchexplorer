@@ -12,7 +12,7 @@ from torchexplorer.api.backend import (
 )
 from torchexplorer.components.histogram import HistogramParams
 from torchexplorer.hook import hook
-from torchexplorer.layout import layout
+from torchexplorer.render import layout
 from torchexplorer.structure import structure
 
 

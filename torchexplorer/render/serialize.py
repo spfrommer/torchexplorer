@@ -6,11 +6,11 @@ import numpy as np
 from torchexplorer import utils
 from torchexplorer.components.histogram import IncrementalHistogram
 
-from torchexplorer.layout.structs import (
+from torchexplorer.render.structs import (
     EdgeRenderable, TooltipRenderable, ModuleInvocationRenderable
 )
 
-def serialized_rows(renderable: ModuleInvocationRenderable) -> list[dict]:
+def serialize_rows(renderable: ModuleInvocationRenderable) -> list[dict]:
     serialized = _serialize_renderable(renderable)
 
     all_augmented_keys = []
