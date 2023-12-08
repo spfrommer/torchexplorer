@@ -181,18 +181,13 @@ class StructureExtractor:
                 upstream_module, invocation_id
             )
 
-            tooltip = Tooltip.create(upstream_module, current_module, invocation_id)
-
             if upstream_struct is None:
                 self.log(f'Creating new upstream structure', *log_args)
                 upstream_struct = self._extract_structure(
                     upstream_module, invocation_id
                 )
                 current_struct.inner_graph.add_node(
-                    upstream_struct,
-                    memory_id=id(upstream_struct),
-                    label=upstream_module.__class__.__name__,
-                    tooltip=tooltip.to_dict_string()
+                    upstream_struct, structure_id=upstream_struct.structure_id
                 )
 
             upstreams = [
@@ -240,6 +235,10 @@ def is_output_node(node) -> bool:
     if not isinstance(node, str):
         return False
     return bool(re.match(r'Output \d+', node)) or (node=='Output')
+
+
+def is_io_node(node) -> bool:
+    return is_input_node(node) or is_output_node(node)
 
 
 # Adapted from: https://stackoverflow.com/questions/10823877/what-is-the-fastest-way-to-flatten-arbitrarily-nested-lists-in-python

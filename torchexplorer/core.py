@@ -115,7 +115,7 @@ class ModuleInvocationStructure():
 
         return self._inner_filter(lambda node: id(node) == memory_id)
 
-    def get_inner_structure_from_structure_id(
+    def get_inner_structure_from_id(
             self, structure_id: int
         ) -> Optional['ModuleInvocationStructure']:
 

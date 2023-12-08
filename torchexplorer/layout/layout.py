@@ -17,7 +17,7 @@ from torchexplorer.components.tooltip import Tooltip
 from torchexplorer.core import (
     ModuleInvocationHistograms, ModuleInvocationStructure, ModuleSharedHistograms
 )
-from torchexplorer.structure.structure import is_input_node, is_output_node
+from torchexplorer.structure.structure import is_input_node, is_io_node
 from torchexplorer.components.histogram import IncrementalHistogram
 
 
@@ -71,7 +71,7 @@ def layout(
     ) -> tuple[ModuleInvocationRenderable, dict]:
 
     name = structure.module.__class__.__name__
-    if is_input_node(name) or is_output_node(name):
+    if is_io_node(name):
         raise RuntimeError(f'Invalid module name: {name}')
     renderable = ModuleInvocationRenderable(display_name=name)
 
@@ -93,9 +93,7 @@ def _layout_into(
     if not hasattr(structure, 'inner_graph'):
         return
 
-    _preprocess_io_names(structure)
     json_data = _get_graphviz_json_with_caching(structure, cached_structure)
-
 
     for object in json_data['objects']:
         draw_points = np.array(object['_draw_'][1]['points'])
@@ -106,13 +104,15 @@ def _layout_into(
         inner_renderable.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
         inner_renderable.top_right_corner = [draw_xs.max(), draw_ys.max()]
 
-        if object['tooltip'] != '{}':
-            _add_tooltip(Tooltip.from_dict_string(object['tooltip']), inner_renderable)
-
-        if not (is_input_node(object['label']) or is_output_node(object['label'])):
-            memory_id = int(object['memory_id'])
-            object_struct = structure.get_inner_structure_from_memory_id(memory_id)
+        if not is_io_node(object['label']):
+            structure_id = int(object['structure_id'])
+            object_struct = structure.get_inner_structure_from_id(structure_id)
             assert object_struct is not None
+
+            tooltip = Tooltip.create(
+                object_struct.module, structure.module, object_struct.invocation_id
+            )
+            _add_tooltip(tooltip, inner_renderable)
 
             metadata = object_struct.module_metadata()
 
@@ -148,13 +148,8 @@ def _add_tooltip(tooltip: Tooltip, renderable: ModuleInvocationRenderable) -> No
         truncate_width = 70
         return _truncate_string_width(str, font_size, truncate_width, truncate)
 
-    node_bottom_left = np.array(renderable.bottom_left_corner)
-    node_top_right = np.array(renderable.top_right_corner)
-    node_center_y = (node_bottom_left[1] + node_top_right[1]) / 2
-
     for i, key in enumerate(tooltip.keys):
         tooltip.keys[i] = _handle_string(key, True)[0]
-
 
     line_widths = [_handle_string(tooltip.title, False, True)[1]]
     for key, val in zip(tooltip.keys, tooltip.vals):
@@ -164,15 +159,13 @@ def _add_tooltip(tooltip: Tooltip, renderable: ModuleInvocationRenderable) -> No
     tooltip_lines = 1 + len(tooltip.keys)
     tooltip_height = 20 + (tooltip_font_size + 2) * tooltip_lines
 
-    tooltip_bottom_left = [node_top_right[0] + 20, node_center_y - tooltip_height / 2]
-    tooltip_top_right = [
-        tooltip_bottom_left[0] + tooltip_width, tooltip_bottom_left[1] + tooltip_height
+    tooltip_bl = [
+        renderable.top_right_corner[0] + 20, _center(renderable)[1] - tooltip_height / 2
     ]
+    tooltip_tr = [tooltip_bl[0] + tooltip_width, tooltip_bl[1] + tooltip_height]
 
     renderable.tooltip = TooltipRenderable(
-        tooltip,
-        bottom_left_corner=tooltip_bottom_left,
-        top_right_corner=tooltip_top_right
+        tooltip, bottom_left_corner=tooltip_bl, top_right_corner=tooltip_tr
     ) 
 
 def _process_graph(renderable: ModuleInvocationRenderable):
@@ -214,7 +207,7 @@ def _translate_inner_renderables(renderable: ModuleInvocationRenderable) -> None
             input_centers.append(_center(r))
 
     center = np.mean(np.array(input_centers), axis=0)
-    trans = [target_input_pos[0] - center[0], target_input_pos[1] - center[1]]
+    trans = utils.list_add(target_input_pos, [-center[0], -center[1]])
 
     def apply_translation(r):
         r.bottom_left_corner = utils.list_add(r.bottom_left_corner, trans)
@@ -229,18 +222,6 @@ def _translate_inner_renderables(renderable: ModuleInvocationRenderable) -> None
         e.path_points = [utils.list_add(p, trans) for p in e.path_points]
         e.arrowhead_points = [utils.list_add(p, trans) for p in e.arrowhead_points]
 
-def _preprocess_io_names(structure: ModuleInvocationStructure) -> None:
-    multiple_inputs = structure.inner_graph.has_node('Input 1')
-    multiple_outputs = structure.inner_graph.has_node('Output 1')
-
-    if not multiple_inputs:
-        new_attributes = {'Input 0': {'label': 'Input', 'tooltip': {}}}
-        nx.set_node_attributes(structure.inner_graph, new_attributes)
-    
-    if not multiple_outputs:
-        new_attributes = {'Output 0': {'label': 'Output', 'tooltip': {}}}
-        nx.set_node_attributes(structure.inner_graph, new_attributes)
-
 def _get_graphviz_json_with_caching(
         structure: ModuleInvocationStructure,
         cached_structure: Optional[ModuleInvocationStructure] = None
@@ -250,17 +231,14 @@ def _get_graphviz_json_with_caching(
         json_data = copy.deepcopy(cached_structure.graphviz_json_cache)
         assert json_data is not None
         for object in json_data['objects']:
-            if (is_input_node(object['label']) or is_output_node(object['label'])):
+            if is_io_node(object['label']):
                 continue
-
-            old_mem_id = int(object['memory_id'])
-            old_struct = cached_structure.get_inner_structure_from_memory_id(old_mem_id)
+            
+            old_structure_id = int(object['structure_id'])
+            old_struct = cached_structure.get_inner_structure_from_id(old_structure_id)
             assert old_struct is not None
-            new_struct = structure.get_inner_structure_from_structure_id(
-                old_struct.structure_id
-            )
+            new_struct = structure.get_inner_structure_from_id(old_structure_id)
             assert new_struct is not None
-            object['memory_id'] = id(new_struct)
             object['cached_structure'] = old_struct
     else:
         json_data = _get_graphviz_json(structure)
@@ -274,6 +252,8 @@ def _get_graphviz_json_with_caching(
 def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> dict:
     # Graphviz carries through the node attributes from structure.py to the JSON 
     _unconstrain_skip_connections(structure.inner_graph)
+    _label_nodes(structure)
+
     A = nx.nx_agraph.to_agraph(structure.inner_graph)
     A.graph_attr.update(splines='ortho', ratio=1)
     A.node_attr.update(shape='box')
@@ -290,6 +270,24 @@ def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> d
         )
 
     return json.loads(stdout_data)
+
+def _label_nodes(structure: ModuleInvocationStructure) -> None:
+    for node in structure.inner_graph.nodes:
+        structure.inner_graph.nodes[node]['label'] = (
+            node if is_io_node(node) else node.module.__class__.__name__
+        )
+
+    multiple_inputs = structure.inner_graph.has_node('Input 1')
+    multiple_outputs = structure.inner_graph.has_node('Output 1')
+
+    if not multiple_inputs:
+        new_attributes = {'Input 0': {'label': 'Input', 'tooltip': {}}}
+        nx.set_node_attributes(structure.inner_graph, new_attributes)
+    
+    if not multiple_outputs:
+        new_attributes = {'Output 0': {'label': 'Output', 'tooltip': {}}}
+        nx.set_node_attributes(structure.inner_graph, new_attributes)
+        
 
 def _unconstrain_skip_connections(graph: nx.DiGraph) -> None:
     """A more aesthetic skip connection layout by unconstraining them in graphviz."""
@@ -378,8 +376,10 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         ]
 
     def interleave_and_serialize_list(
-            raw_hists: Optional[list], grad_hists: Optional[list],
-            prefix: str, suffix: str
+            raw_hists: Optional[list[IncrementalHistogram]],
+            grad_hists: Optional[list[IncrementalHistogram]],
+            prefix: str,
+            suffix: str
         ) -> str:
 
         raw_hists = [] if raw_hists is None else raw_hists
@@ -403,7 +403,8 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         ])
 
     def interleave_and_serialize_dict(
-            raw_hists: Optional[dict], grad_hists: Optional[dict]
+            raw_hists: Optional[dict[str, IncrementalHistogram]],
+            grad_hists: Optional[dict[str, IncrementalHistogram]]
         ) -> str:
 
         raw_hists = {} if raw_hists is None else raw_hists
