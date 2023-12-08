@@ -126,24 +126,26 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
         invocation_tensor_sizes = sizes[invocation_id]
 
         for i, tensor in enumerate(tensors):
-            if tensor is not None:
-                shape = list(tensor.shape)
+            if tensor is None:
+                continue
 
-                if len(invocation_tensor_sizes) <= i:
-                    invocation_tensor_sizes.append(shape)
-                else:
-                    if invocation_tensor_sizes[i] is None:
-                        continue
-                    
-                    stored_shape = invocation_tensor_sizes[i]
-                    if len(shape) != len(stored_shape):
-                        invocation_tensor_sizes[i] = None
-                    
-                    # TODO: with graphviz caching, this actually doesn't need to run
-                    # since only the first pass sizes are stored.
-                    for j in range(len(shape)):
-                        if shape[j] != stored_shape[j]:
-                            stored_shape[j] = None
+            shape = list(tensor.shape)
+
+            if len(invocation_tensor_sizes) <= i:
+                invocation_tensor_sizes.append(shape)
+            else:
+                if invocation_tensor_sizes[i] is None:
+                    continue
+                
+                stored_shape = invocation_tensor_sizes[i]
+                if len(shape) != len(stored_shape):
+                    invocation_tensor_sizes[i] = None
+                
+                # TODO: with graphviz caching, this actually doesn't need to run
+                # since only the first pass sizes are stored.
+                for j in range(len(shape)):
+                    if shape[j] != stored_shape[j]:
+                        stored_shape[j] = None
 
     def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
         if not should_log_callable():
@@ -301,12 +303,14 @@ def _add_io_grad_histogram_hooks(
                 if len(hists) <= i:
                     hists.append(IncrementalHistogram(hist_params))
 
-                if tensor is not None:
-                    if len(tensor.shape) == 0:
-                        tensor = tensor.reshape(1, 1)
-                    tensor = tensor.reshape(tensor.shape[0], -1)
-                    norms = torch.norm(tensor.float(), dim=1)
-                    hists[i].update(norms.detach())
+                if tensor is None:
+                    continue
+
+                if len(tensor.shape) == 0:
+                    tensor = tensor.reshape(1, 1)
+                tensor = tensor.reshape(tensor.shape[0], -1)
+                norms = torch.norm(tensor.float(), dim=1)
+                hists[i].update(norms.detach())
 
     if type(module) not in ignore_classes:
         module.register_full_backward_hook(backward_hook)

@@ -15,13 +15,6 @@ config = {'handlers': [{ 'sink': sys.stderr, 'format': '{message}', 'level': 'DE
 logger.configure(**config)  # type: ignore
 logger.disable("torchexplorer")
 
-log_indent_level = 0
-def log(message: str, extract_level: str, class_name: str):
-    indent = '| ' * log_indent_level
-    logger.opt(colors=True).debug(
-        f'{indent}<green>{extract_level}</green>:<blue>{class_name}</blue> {message}'
-    )
-
 
 from torchexplorer.core import GradFn, InvocationId, ModuleInvocationStructure
 
@@ -48,36 +41,46 @@ class DownstreamStructureNode:
         node_str = self.node if isinstance(self.node, str) else self.node.str_impl()
         return f'(Downstream {node_str}):input {self.input_index}'
 
-
-class StructureExtractor:
-    def __init__(self, module: Module, invocation_id: InvocationId):
-        self.module = module
-
-
 def extract_structure(
         module: Module, invocation_id: InvocationId=0
     ) -> ModuleInvocationStructure:
     """Module must have had hooks already added and one forward pass."""
 
-    structure_id = 0
+    extractor = StructureExtractor(module, invocation_id)
+    return extractor.extract_structure()
+
+
+class StructureExtractor:
+    def __init__(self, module: Module, invocation_id: InvocationId):
+        self.module = module
+        self.invocation_id = invocation_id
+        self.structure_id = 0
+        self.log_indent_level = 0
+
+    def log(self, message: str, extract_level: str, class_name: str):
+        ind = '| ' * self.log_indent_level
+        logger.opt(colors=True).debug(
+            f'{ind}<green>{extract_level}</green>:<blue>{class_name}</blue> {message}'
+        )
+
+    def extract_structure(self) -> ModuleInvocationStructure:
+        return self._extract_structure(self.module, self.invocation_id)
 
     def _extract_structure(
-            module: Module, invocation_id: InvocationId
+            self, module: Module, invocation_id: InvocationId
         ) -> ModuleInvocationStructure:
-        global log_indent_level
-        nonlocal structure_id
 
-        log_indent_level += 1
+        self.log_indent_level += 1
 
         log_args = ['OUTER', module.__class__.__name__]
-        log('Start extracting structure', *log_args)
+        self.log('Start extracting structure', *log_args)
 
         input_n = len(module.torchexplorer_metadata.input_gradfns[invocation_id])
         output_n = len(module.torchexplorer_metadata.output_gradfns[invocation_id])
         structure = ModuleInvocationStructure(
-            module, invocation_id, structure_id, input_n, output_n
+            module, invocation_id, self.structure_id, input_n, output_n
         )
-        structure_id += 1
+        self.structure_id += 1
         structure.upstreams_fetched = False
 
 
@@ -96,9 +99,9 @@ def extract_structure(
             downstream = downstreams[i]
             i += 1
 
-            log(f'Processing downstream {downstream}', *log_args)
-            upstreams = _inner_recurse(structure, downstream.gradfn)
-            log(f'Done inner recurse, got {len(upstreams)} upstreams', *log_args)
+            self.log(f'Processing downstream {downstream}', *log_args)
+            upstreams = self._inner_recurse(structure, downstream.gradfn)
+            self.log(f'Done inner recurse, got {len(upstreams)} upstreams', *log_args)
 
             for upstream in upstreams:
                 assert structure.inner_graph.has_node(upstream.node)
@@ -117,36 +120,36 @@ def extract_structure(
                 assert isinstance(upstream.node, ModuleInvocationStructure)
                     
                 if not upstream.node.upstreams_fetched:
-                    log(f'Queue {upstream.node.module.__class__.__name__}', *log_args)
+                    self.log(f'Q {upstream.node.module.__class__.__name__}', *log_args)
                     for j, input_gradfn in enumerate(_get_input_gradfns(upstream.node)):
                         if input_gradfn is None:
                             continue
 
-                        log(f'Queueing upstream {input_gradfn}', *log_args)
+                        self.log(f'Queueing upstream {input_gradfn}', *log_args)
                         downstreams.append(DownstreamStructureNode(
                             node=upstream.node, input_index=j, gradfn=input_gradfn
                         ))
                     
                     upstream.node.upstreams_fetched = True
 
-        log('Done extracting structure', *log_args)
-        log_indent_level -= 1
+        self.log('Done extracting structure', *log_args)
+        self.log_indent_level -= 1
         return structure
 
     def _inner_recurse(
+            self,
             current_struct: ModuleInvocationStructure,
             gradfn: GradFn,
             gradfn_index: Optional[int]=None
         ) -> list[UpstreamStructureNode]:
-        global log_indent_level
         # Some gradfns kind of "combine" all their inputs into one gradfn node in the
         # graph (e.g., BackwardHookFunctionBackward). To keep the parent dependencies
         # exact, we only recurse into the particular gradfn_index.
         current_module = current_struct.module
 
-        log_indent_level += 1
+        self.log_indent_level += 1
         log_args = ['INNER', current_module.__class__.__name__]
-        log(f'Recursing on {gradfn} with index {gradfn_index}', *log_args)
+        self.log(f'Recursing on {gradfn} with index {gradfn_index}', *log_args)
 
         if gradfn is None:
             return []
@@ -155,7 +158,7 @@ def extract_structure(
         if 'BackwardHookFunctionBackward' in str(gradfn) and gradfn_index is not None:
             next_functions = (next_functions[gradfn_index],)
 
-        log(f'Next functions: {gradfn.next_functions}  ->  {next_functions}', *log_args)
+        self.log(f'Next fns: {gradfn.next_functions}  ->  {next_functions}', *log_args)
         metadata = gradfn.metadata
 
         is_enter_forward = 'input_index' in metadata
@@ -166,14 +169,14 @@ def extract_structure(
             assert metadata['invocation_id'] == current_struct.invocation_id
             name = f'Input {metadata["input_index"]}'
 
-            log(f'Entering forward, input index {metadata["input_index"]}', *log_args)
+            self.log(f'Enter forward, in index {metadata["input_index"]}', *log_args)
             upstreams = [UpstreamStructureNode(name, metadata['input_index'])]
         elif is_exit_forward:
             upstream_module = metadata['module']
             invocation_id = metadata['invocation_id']
 
-            log(f'Exiting forward, output index {metadata["output_index"]}', *log_args)
-            log(f'Upstream module: {upstream_module.__class__.__name__}', *log_args)
+            self.log(f'Exit forward, out index {metadata["output_index"]}', *log_args)
+            self.log(f'Upstream mod: {upstream_module.__class__.__name__}', *log_args)
 
             upstream_struct = current_struct.get_inner_structure(
                 upstream_module, invocation_id
@@ -182,14 +185,17 @@ def extract_structure(
             tooltip = Tooltip.create(upstream_module, current_module, invocation_id)
 
             if upstream_struct is None:
-                log(f'Creating new upstream structure', *log_args)
-                upstream_struct = _extract_structure(upstream_module, invocation_id)
+                self.log(f'Creating new upstream structure', *log_args)
+                upstream_struct = self._extract_structure(
+                    upstream_module, invocation_id
+                )
                 current_struct.inner_graph.add_node(
                     upstream_struct,
                     memory_id=id(upstream_struct),
                     label=upstream_module.__class__.__name__,
                     tooltip=tooltip.to_dict_string()
                 )
+
             upstreams = [
                 UpstreamStructureNode(upstream_struct, metadata['output_index'])
             ]
@@ -199,20 +205,17 @@ def extract_structure(
                     return gradfn.metadata['upstreams_cache'][gradfn_index]
 
             upstreams = _flatten([
-                _inner_recurse(current_struct, n[0], n[1]) for n in next_functions
+                self._inner_recurse(current_struct, n[0], n[1]) for n in next_functions
             ])
 
 
             if 'upstreams_cache' not in gradfn.metadata:
                 gradfn.metadata['upstreams_cache'] = {}
             gradfn.metadata['upstreams_cache'][gradfn_index] = upstreams
-            log(f'Returning {len(upstreams)} intermediate upstreams', *log_args)
+            self.log(f'Returning {len(upstreams)} intermediate upstreams', *log_args)
 
-        log_indent_level -= 1
+        self.log_indent_level -= 1
         return upstreams
-    
-    
-    return _extract_structure(module, invocation_id)
 
 
 def _get_input_gradfns(
