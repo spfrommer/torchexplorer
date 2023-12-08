@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import torch
 from torch import nn
+from torch.nn import Module
 from torch import Tensor
 
 from typing import Callable, Optional, Union
@@ -14,8 +15,60 @@ from torchexplorer.components.histogram import HistogramParams, IncrementalHisto
 from torchexplorer import utils
 
 
+OTensorOrTuple = Union[OTensor, tuple[OTensor, ...]]
+
+
+def push_histogram_histories(
+        module: Module,
+        hist_params: HistogramParams,
+        time: int,
+        log_params: bool,
+        log_params_grad: bool,
+    ):
+    """Pushes the histograms of a module and its children to their histories."""
+    
+    metadata = module.torchexplorer_metadata
+    
+    shared_hists: ModuleSharedHistograms = metadata.shared_hists
+    for name, param in module._parameters.items():
+        if log_params and (param is not None):
+            if name not in shared_hists.param_hists:
+                shared_hists.param_hists[name] = IncrementalHistogram(hist_params)
+
+            hist = shared_hists.param_hists[name]
+            hist.update(param.detach())
+        
+        if log_params_grad and (param is not None) and (param.grad is not None):
+            if name not in shared_hists.param_grad_hists:
+                shared_hists.param_grad_hists[name] = IncrementalHistogram(hist_params)
+
+            hist = shared_hists.param_grad_hists[name]
+            hist.update(param.grad.detach())
+
+
+    def all_hists(h: ModuleInvocationHistograms) -> list[IncrementalHistogram]:
+        return h.input_hists + h.output_hists
+    
+    flatten = lambda l: [item for sublist in l for item in sublist]
+    
+    all_histograms = (
+        flatten([all_hists(h) for h in metadata.invocation_hists.values()]) +
+        flatten([all_hists(h) for h in metadata.invocation_grad_hists.values()]) +
+        list(metadata.shared_hists.param_hists.values()) + 
+        list(metadata.shared_hists.param_grad_hists.values())
+    )
+
+    for histogram in all_histograms:
+        # For reused modules, don't want to push the histograms twice
+        if max(histogram.bin_counts) > 0:
+            histogram.push_history(time)
+
+    for child in module.children():
+        push_histogram_histories(child, hist_params, time, log_params, log_params_grad)
+
+
 def hook(
-        module: nn.Module,
+        module: Module,
         should_log_callable: Callable,
         log_io=True,
         log_io_grad=True,
@@ -23,9 +76,18 @@ def hook(
         hist_params: HistogramParams = HistogramParams()
     ):
 
+    def _add_metadata(module: Module):
+        module.torchexplorer_metadata = ExplorerMetadata() # type: ignore
+
+    def _clear_temporary_metadata(module: Module):
+        module.torchexplorer_metadata.input_gradfns.clear()
+        module.torchexplorer_metadata.output_gradfns.clear()
+        module.torchexplorer_metadata.forward_invocation_counter = 0
+        module.torchexplorer_metadata.backward_invocation_counter = 0
+
     module.apply(_add_metadata)
 
-    def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
+    def pre_hook(module: Module, inputs: tuple[OTensor, ...]):
         module.apply(_clear_temporary_metadata)
         # Make sure we are tracking gradients back to inputs
         return _add_dummy(inputs)
@@ -42,92 +104,15 @@ def hook(
             module, hist_params, should_log_callable, ignore_io_grad_classes
         )
 
-
-def push_histogram_histories(
-        module: nn.Module,
-        hist_params: HistogramParams,
-        time: int,
-        log_params: bool,
-        log_params_grad: bool,
-    ):
-    """Pushes the histograms of a module and its children to their histories."""
-    
-    metadata = module.torchexplorer_metadata
-    
-    shared_hists: ModuleSharedHistograms = metadata.shared_hists
-    for name, param in module._parameters.items():
-        if log_params and param is not None:
-            if name not in shared_hists.param_hists:
-                shared_hists.param_hists[name] = IncrementalHistogram(hist_params)
-
-            hist = shared_hists.param_hists[name]
-            hist.update(param.detach())
-        
-        if log_params_grad and param is not None and param.grad is not None:
-            if name not in shared_hists.param_grad_hists:
-                shared_hists.param_grad_hists[name] = IncrementalHistogram(hist_params)
-
-            hist = shared_hists.param_grad_hists[name]
-            hist.update(param.grad.detach())
-
-
-    def get_hists(h: ModuleInvocationHistograms) -> list[IncrementalHistogram]:
-        return h.input_hists + h.output_hists
-    
-    flatten = lambda l: [item for sublist in l for item in sublist]
-    
-    all_histograms = (
-        flatten([get_hists(h) for h in metadata.invocation_hists.values()]) +
-        flatten([get_hists(h) for h in metadata.invocation_grad_hists.values()]) +
-        list(metadata.shared_hists.param_hists.values()) + 
-        list(metadata.shared_hists.param_grad_hists.values())
-    )
-
-    for histogram in all_histograms:
-        # For reused modules, don't want to push the histograms twice
-        if max(histogram.bin_counts) > 0:
-            histogram.push_history(time)
-
-    for child in module.children():
-        push_histogram_histories(child, hist_params, time, log_params, log_params_grad)
-
-def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
-    def process_tensor(tensor: OTensor) -> OTensor:
-        dummy_tensor = torch.tensor(0.0, requires_grad=True)
-        return tensor + dummy_tensor if torch.is_floating_point(tensor) else tensor
-    return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
-
-def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
-    def gradfns_tensors(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
-        def process_tensor(tensor: OTensor) -> Optional[GradFn]:
-            return tensor.grad_fn if tensor.requires_grad else None
-
-        return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
-    
-    def gradfns_next(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
-        # Hacky workaround, couldn't figure out import
-        # Check if all gradfns are the same 'BackwardHookFunctionBackward'
-        if (
-            tensors[0] is not None and
-            'BackwardHookFunctionBackward' in str(tensors[0].grad_fn)
-        ):
-            # Multiple inputs will share a BackwardHookFunctionBackward gradfn.
-            # To tease apart multiple input nodes in the explorer, we need to go
-            # one level deeper.
-            return tuple(f[0] for f in tensors[0].grad_fn.next_functions) # type: ignore
-
-        return gradfns_tensors(tensors)
-
-    def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
-        if not should_log_callable():
-            return
-        
+def _add_tracking_hooks(module: Module, should_log_callable: Callable):
+    @return_if_not_should_log(should_log_callable)
+    def pre_hook(module: Module, inputs: tuple[OTensor, ...]):
         # In case an input is passed directly to a submodule
         # Honestly nto really sure why it's necessary but it is
         inputs = _add_dummy(inputs)
 
         metadata: ExplorerMetadata = module.torchexplorer_metadata
-        input_gradfns = gradfns_next(inputs)
+        input_gradfns = _get_next_gradfns(inputs)
         metadata.input_gradfns[metadata.forward_invocation_counter] = input_gradfns
         metadata.forward_invocation_counter += 1
 
@@ -135,15 +120,8 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
         # recursion and starting an inner recursion.
         return _add_dummy(inputs)
 
-    def post_hook(
-            module: nn.Module,
-            inputs: tuple[OTensor, ...],
-            outputs: Union[OTensor, tuple[OTensor, ...]]
-        ):
-
-        if not should_log_callable():
-            return
-
+    @return_if_not_should_log(should_log_callable)
+    def post_hook(module: Module, inputs: tuple[OTensor, ...], outputs: OTensorOrTuple):
         outputs_tuple, single_output = _ensure_tuple(outputs)
 
         metadata: ExplorerMetadata = module.torchexplorer_metadata
@@ -155,15 +133,15 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
 
         # These gradfns are used to recurse inside the module. So we record them
         # before adding a dummy operation to the graph.
-        metadata.output_gradfns[invocation_id] = gradfns_tensors(outputs_tuple)
+        metadata.output_gradfns[invocation_id] = _get_tensor_gradfns(outputs_tuple)
         
         # Add a graph "spacer" so that we have different gradfns for stopping an outer
         # recursion and starting an inner recursion.
         outputs_tuple = _add_dummy(outputs_tuple)
 
         for io_gradfns, index_name in [
-            (gradfns_next(inputs), 'input_index'),
-            (gradfns_tensors(outputs_tuple), 'output_index')
+            (_get_next_gradfns(inputs), 'input_index'),
+            (_get_tensor_gradfns(outputs_tuple), 'output_index')
         ]:
             for i, gradfn in utils.enum_not_none(io_gradfns):
                 assert isinstance(gradfn.metadata, dict)
@@ -182,16 +160,7 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
     
     module.apply(add_hooks)
 
-def _add_metadata(module: nn.Module):
-    module.torchexplorer_metadata = ExplorerMetadata() # type: ignore
-
-def _clear_temporary_metadata(module: nn.Module):
-    module.torchexplorer_metadata.input_gradfns.clear()
-    module.torchexplorer_metadata.output_gradfns.clear()
-    module.torchexplorer_metadata.forward_invocation_counter = 0
-    module.torchexplorer_metadata.backward_invocation_counter = 0
-
-def _add_size_record_hooks(module: nn.Module, should_log_callable: Callable):
+def _add_size_record_hooks(module: Module, should_log_callable: Callable):
     def record_sizes(tensors: tuple[OTensor], tensor_sizes: list[AdaptiveSize]) -> None:
         for i, tensor in utils.enum_not_none(tensors):
             shape = list(tensor.shape)
@@ -209,15 +178,8 @@ def _add_size_record_hooks(module: nn.Module, should_log_callable: Callable):
                     if shape[j] != stored_shape[j]:
                         stored_shape[j] = None
 
-    def post_hook(
-            module: nn.Module,
-            inputs: tuple[OTensor],
-            outputs: Union[OTensor, tuple[OTensor]]
-        ):
-
-        if not should_log_callable():
-            return
-
+    @return_if_not_should_log(should_log_callable)
+    def post_hook(module: Module, inputs: tuple[OTensor, ...], outputs: OTensorOrTuple):
         outputs_tuple, _ = _ensure_tuple(outputs)
 
         metadata: ExplorerMetadata = module.torchexplorer_metadata
@@ -228,24 +190,16 @@ def _add_size_record_hooks(module: nn.Module, should_log_callable: Callable):
         ]:
             record_sizes(tensors, sizes.setdefault(invocation_id, []))
 
-
-    def hook_module(m: nn.Module):
+    def hook_module(m: Module):
         m.register_forward_hook(post_hook)
     module.apply(hook_module)
 
 def _add_io_histogram_hooks(
-        module: nn.Module, hist_params: HistogramParams, should_log_callable: Callable
+        module: Module, hist_params: HistogramParams, should_log_callable: Callable
     ):
 
-    def post_hook(
-            module: nn.Module,
-            inputs: tuple[OTensor],
-            outputs: Union[OTensor, tuple[OTensor]]
-        ):
-
-        if not should_log_callable():
-            return
-
+    @return_if_not_should_log(should_log_callable)
+    def post_hook(module: Module, inputs: tuple[OTensor, ...], outputs: OTensorOrTuple):
         outputs_tuple, _ = _ensure_tuple(outputs)
 
         metadata = module.torchexplorer_metadata
@@ -263,25 +217,21 @@ def _add_io_histogram_hooks(
                 if tensor is not None:
                     hists[i].update(tensor.detach())
 
-    def hook_module(m: nn.Module):
+    def hook_module(m: Module):
         m.register_forward_hook(post_hook)
     module.apply(hook_module)
 
 def _add_io_grad_histogram_hooks(
-        module: nn.Module,
+        module: Module,
         hist_params: HistogramParams,
         should_log_callable: Callable,
         ignore_classes: list[type]
     ):
 
+    @return_if_not_should_log(should_log_callable)
     def backward_hook(
-            module: nn.Module,
-            grads_input: Union[OTensor, tuple[OTensor, ...]],
-            grads_output: Union[OTensor, tuple[OTensor, ...]]
-        ) -> None:
-
-        if not should_log_callable():
-            return
+            module: Module, grads_input: OTensorOrTuple, grads_output: OTensorOrTuple
+        ):
 
         grads_input_tuple, _ = _ensure_tuple(grads_input)
         grads_output_tuple, _ = _ensure_tuple(grads_output)
@@ -319,6 +269,7 @@ def _add_io_grad_histogram_hooks(
                 child, hist_params, should_log_callable, ignore_classes
             )
 
+
 def _ensure_tuple(
         x: Union[OTensor, tuple[OTensor, ...]]
     ) -> tuple[tuple[OTensor, ...], bool]:
@@ -326,3 +277,36 @@ def _ensure_tuple(
     is_single = x is None or isinstance(x, Tensor)
     ret_x = (x,) if is_single else x
     return ret_x, is_single # type: ignore 
+
+def _add_dummy(tensors: tuple[OTensor, ...]) -> tuple[OTensor, ...]:
+    def process_tensor(tensor: OTensor) -> OTensor:
+        dummy_tensor = torch.tensor(0.0, requires_grad=True)
+        return tensor + dummy_tensor if torch.is_floating_point(tensor) else tensor
+    return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
+
+def _get_tensor_gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
+    def process_tensor(tensor: OTensor) -> Optional[GradFn]:
+        return tensor.grad_fn if tensor.requires_grad else None
+
+    return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
+
+def _get_next_gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
+    # Hacky workaround, couldn't figure out import
+    # Check if all gradfns are the same 'BackwardHookFunctionBackward'
+    is_bh_backward = 'BackwardHookFunctionBackward' in str(tensors[0].grad_fn)
+    if tensors[0] is not None and is_bh_backward:
+        # Multiple inputs will share a BackwardHookFunctionBackward gradfn.
+        # To tease apart multiple input nodes in the explorer, we need to go
+        # one level deeper.
+        return tuple(f[0] for f in tensors[0].grad_fn.next_functions) # type: ignore
+
+    return _get_tensor_gradfns(tensors)
+
+def return_if_not_should_log(should_log_callable: Callable):
+    def decorator(hook):
+        def wrapper(*args, **kwargs):
+            if not should_log_callable():
+                return
+            return hook(*args, **kwargs)
+        return wrapper
+    return decorator

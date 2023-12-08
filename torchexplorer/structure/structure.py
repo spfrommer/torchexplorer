@@ -44,6 +44,7 @@ class DownstreamStructureNode:
         node_str = self.node if isinstance(self.node, str) else self.node.str_impl()
         return f'(Downstream {node_str}):input {self.input_index}'
 
+
 def extract_structure(
         module: Module, invocation_id: InvocationId=0
     ) -> ModuleInvocationStructure:
