@@ -70,7 +70,7 @@ def main():
         optimizer.zero_grad()
 
     renderable = layout.layout(structure_wrapper.structure)[0]
-    rendered_layout = layout.serialized_rows(renderable)
+    rendered_layout = layout.serialize.serialized_rows(renderable)
 
     def custom_json(d: dict):
         string = json.dumps(d, cls=CompactJSONEncoder, indent=2)
