@@ -8,7 +8,7 @@ from torch import optim
 from torch import nn
 import pyperclip
 
-from torchexplorer import layout
+from torchexplorer.layout import layout
 from torchexplorer.api import api
 
 

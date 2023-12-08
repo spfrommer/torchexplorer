@@ -7,7 +7,7 @@ import threading
 import wandb
 import sys
 
-from torchexplorer import layout
+from torchexplorer.layout import layout
 
 
 class Backend():
