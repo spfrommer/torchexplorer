@@ -1,21 +1,23 @@
 from __future__ import annotations
 
+
 import torch
-from torch import nn
 from torch.nn import Module
 from torch import Tensor
 
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Tuple
 
 from torchexplorer.core import (
     AdaptiveSize, ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms,
     OTensor, GradFn
 )
+
+
 from torchexplorer.components.histogram import HistogramParams, IncrementalHistogram
 from torchexplorer import utils
 
 
-OTensorOrTuple = Union[OTensor, tuple[OTensor, ...]]
+OTensorOrTuple = Union[OTensor, Tuple[OTensor, ...]]
 
 
 def push_histogram_histories(
