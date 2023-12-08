@@ -33,6 +33,7 @@ def hook(
     module.register_forward_pre_hook(pre_hook)
 
     _add_tracking_hooks(module, should_log_callable)
+    _add_size_record_hooks(module, should_log_callable)
 
     if log_io:
         _add_io_histogram_hooks(module, hist_params, should_log_callable)
@@ -116,23 +117,6 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
             return tuple(f[0] for f in tensors[0].grad_fn.next_functions) # type: ignore
 
         return gradfns_tensors(tensors)
-    
-    def record_sizes(tensors: tuple[OTensor], tensor_sizes: list[AdaptiveSize]) -> None:
-        for i, tensor in utils.enum_not_none(tensors):
-            shape = list(tensor.shape)
-
-            if len(tensor_sizes) <= i:
-                tensor_sizes.append(shape)
-            elif tensor_sizes[i] is not None:
-                stored_shape = tensor_sizes[i]
-                if len(shape) != len(stored_shape):
-                    tensor_sizes[i] = None
-                
-                # TODO: with graphviz caching, this actually doesn't need to run
-                # since only the first pass sizes are stored.
-                for j in range(len(shape)):
-                    if shape[j] != stored_shape[j]:
-                        stored_shape[j] = None
 
     def pre_hook(module: nn.Module, inputs: tuple[OTensor, ...]):
         if not should_log_callable():
@@ -188,12 +172,6 @@ def _add_tracking_hooks(module: nn.Module, should_log_callable: Callable):
                 gradfn.metadata[index_name] = i
                 gradfn.metadata['invocation_id'] = invocation_id
 
-        # Record input / output sizes
-        for (tensors, sizes) in [
-            (inputs, metadata.input_sizes), (outputs_tuple, metadata.output_sizes)
-        ]:
-            record_sizes(tensors, sizes.setdefault(invocation_id, []))
-
         return outputs_tuple[0] if single_output else outputs_tuple
 
     def add_hooks(module):
@@ -212,6 +190,48 @@ def _clear_temporary_metadata(module: nn.Module):
     module.torchexplorer_metadata.output_gradfns.clear()
     module.torchexplorer_metadata.forward_invocation_counter = 0
     module.torchexplorer_metadata.backward_invocation_counter = 0
+
+def _add_size_record_hooks(module: nn.Module, should_log_callable: Callable):
+    def record_sizes(tensors: tuple[OTensor], tensor_sizes: list[AdaptiveSize]) -> None:
+        for i, tensor in utils.enum_not_none(tensors):
+            shape = list(tensor.shape)
+
+            if len(tensor_sizes) <= i:
+                tensor_sizes.append(shape)
+            elif tensor_sizes[i] is not None:
+                stored_shape = tensor_sizes[i]
+                if len(shape) != len(stored_shape):
+                    tensor_sizes[i] = None
+                
+                # TODO: with graphviz caching, this actually doesn't need to run
+                # since only the first pass sizes are stored.
+                for j in range(len(shape)):
+                    if shape[j] != stored_shape[j]:
+                        stored_shape[j] = None
+
+    def post_hook(
+            module: nn.Module,
+            inputs: tuple[OTensor],
+            outputs: Union[OTensor, tuple[OTensor]]
+        ):
+
+        if not should_log_callable():
+            return
+
+        outputs_tuple, _ = _ensure_tuple(outputs)
+
+        metadata: ExplorerMetadata = module.torchexplorer_metadata
+        invocation_id = metadata.forward_invocation_counter - 1
+
+        for (tensors, sizes) in [
+            (inputs, metadata.input_sizes), (outputs_tuple, metadata.output_sizes)
+        ]:
+            record_sizes(tensors, sizes.setdefault(invocation_id, []))
+
+
+    def hook_module(m: nn.Module):
+        m.register_forward_hook(post_hook)
+    module.apply(hook_module)
 
 def _add_io_histogram_hooks(
         module: nn.Module, hist_params: HistogramParams, should_log_callable: Callable
