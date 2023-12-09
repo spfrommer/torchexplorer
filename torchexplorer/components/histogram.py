@@ -13,7 +13,7 @@ HistogramCounts = List[int]
 @dataclass
 class HistogramParams:
     bins: int = 10
-    sample_n: int = 100
+    sample_n: Optional[int] = 100
     reject_outlier_proportion: float = 0
     time_unit: str = 'step'
 
@@ -37,7 +37,7 @@ class IncrementalHistogram:
 
         tensor = tensor.flatten().float()
 
-        if self.params.sample_n < tensor.shape[0]:
+        if (self.params.sample_n is not None) and self.params.sample_n < tensor.numel():
             indices = torch.randint(tensor.shape[0], (self.params.sample_n,))
             tensor = tensor[indices]
 

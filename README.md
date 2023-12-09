@@ -77,6 +77,10 @@ _Tooltips._ Mousing over explorer graph nodes displays a helpful tooltip. The fi
 
 **Histograms.** Each vertical "slice" of a histogram encodes the distribution of values at the corresponding x-axis time. The y-axis displays the minimum / maximum bounds of the histogram. Completely white squares mean that no data fell in that bin. A bin with one entry will be shaded light gray, with the color intensifying as more values fall in that bin (this encodes the "height" of the histogram). The dashed horizontal line is the $y=0$ line.
 
+> [!NOTE]
+> The tensors populating histograms are processed in two ways. First, for performance reasons they are randomly subsampled according to the `sample_n` parameter. This is 100 by default, and passing `None` will disable sub-sampling. Note that this sampling means that histograms that should be the same may look slightly different (e.g., output of parent node and input of child node). Second, a fraction of the most extreme values from the median are rejected to prevent outliers from compressing the histogram. This fraction is 0.1 by default, and can be disabled by passing 0.0 to the `reject_outlier_propertion` parameter.
+
+
 For the following explanations, I'll be referencing this module:
 ```python
 class TestModule(nn.Module):
@@ -114,7 +118,7 @@ def watch(
     ignore_io_grad_classes: list[type] = [],
     disable_inplace: bool = False,
     bins: int = 20,
-    sample_n: int = 100,
+    sample_n: Optional[int] = 100,
     reject_outlier_proportion: float = 0.1,
     time_log: tuple[str, Callable] = ('step', lambda module, step: step),
     backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
@@ -135,7 +139,8 @@ Args:
     disable_inplace (bool): disables the 'inplace' attribute for all activations in
         the module.
     bins (int): The number of bins to use for histograms.
-    sample_n (int): The number of tensor elements to randomly sample for histograms.
+    sample_n (Optional[int]): The number of tensor elements to randomly sample for
+        histograms. Passing "None" will sample all elements.
     reject_outlier_proportion (float): The proportion of outliners to reject when
         computing histograms, based on distance to the median. 0.0 means reject
         nothing, 1.0 rejects everything. Helps chart stay in a reasonable range.

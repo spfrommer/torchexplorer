@@ -49,7 +49,7 @@ def watch(
         ignore_io_grad_classes: list[type] = [],
         disable_inplace: bool = False,
         bins: int = 20,
-        sample_n: int = 100,
+        sample_n: Optional[int] = 100,
         reject_outlier_proportion: float = 0.1,
         time_log: tuple[str, Callable] = ('step', lambda module, step: step),
         backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
@@ -70,7 +70,8 @@ def watch(
         disable_inplace (bool): disables the 'inplace' attribute for all activations in
             the module.
         bins (int): The number of bins to use for histograms.
-        sample_n (int): The number of tensor elements to randomly sample for histograms.
+        sample_n (Optional[int]): The number of tensor elements to randomly sample for
+            histograms. Passing "None" will sample all elements.
         reject_outlier_proportion (float): The proportion of outliners to reject when
             computing histograms, based on distance to the median. 0.0 means reject
             nothing, 1.0 rejects everything. Helps chart stay in a reasonable range.
