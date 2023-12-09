@@ -76,7 +76,7 @@ class StandaloneBackend(Backend):
         self.standalone_port = standalone_port
         self.verbose = verbose
 
-        source_explorer_dir = os.path.dirname(__file__)
+        source_explorer_dir = os.path.dirname(os.path.dirname(__file__))
         source_app_path = os.path.join(source_explorer_dir, 'standalone')
         target_app_path = os.path.abspath(standalone_dir)
         source_vega_path = os.path.join(source_explorer_dir, 'vega/vega_dataless.json')
