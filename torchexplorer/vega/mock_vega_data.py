@@ -8,7 +8,7 @@ from torch import optim
 from torch import nn
 import pyperclip
 
-from torchexplorer.render import layout
+from torchexplorer.render import layout, serialize
 from torchexplorer.api import api
 
 
@@ -43,21 +43,23 @@ def main():
     # structure_wrapper = api.watch(model, log_freq=1, backend='none', time_log=time_log)
     # X, y = torch.randn(5, 10), torch.randn(5, 10)
 
-    import torchvision
-    model = torchvision.models.resnet18()
-    inplace_classes = [torchvision.models.resnet.BasicBlock]
+    # import torchvision
+    # model = torchvision.models.resnet18()
+    # inplace_classes = [torchvision.models.resnet.BasicBlock]
+    # structure_wrapper = api.watch(
+    #     model, log_freq=1, backend='none',
+    #     ignore_io_grad_classes=inplace_classes, disable_inplace=True
+    # )
+    # X, y = torch.randn(5, 3, 32, 32), torch.randn(5, 1000)
+
+
+    encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
+    model = nn.TransformerEncoder(encoder_layer, num_layers=6)
     structure_wrapper = api.watch(
-        model, log_freq=1, backend='none',
-        ignore_io_grad_classes=inplace_classes, disable_inplace=True
+        model, log_freq=1, backend='none', disable_inplace=True
     )
-    X, y = torch.randn(5, 3, 32, 32), torch.randn(5, 1000)
-
-
-    # encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
-    # model = nn.TransformerEncoder(encoder_layer, num_layers=6)
-    # hook.hook(model)
-    # X = torch.rand(10, 32, 512)
-    # y = torch.randn(10, 32, 512)
+    X = torch.rand(10, 32, 512)
+    y = torch.randn(10, 32, 512)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-2)
     loss_fn = torch.nn.MSELoss()
@@ -70,13 +72,13 @@ def main():
         optimizer.zero_grad()
 
     renderable = layout.layout(structure_wrapper.structure)[0]
-    rendered_layout = layout.serialize.serialize_rows(renderable)
+    serialized_dict = serialize.serialize_rows(renderable)
 
     def custom_json(d: dict):
         string = json.dumps(d, cls=CompactJSONEncoder, indent=2)
         return string.replace('\n', '\n      ')
 
-    pyperclip.copy(custom_json(rendered_layout))
+    pyperclip.copy(custom_json(serialized_dict))
 
     print('Copied to clipboard. Paste into the vega editor in the "wandb" data.')
 

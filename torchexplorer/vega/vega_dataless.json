@@ -394,9 +394,14 @@
           "expr": "split(datum.times, '::')"
         },
         {
+          "type": "formula",
+          "as": "histogram_display_name",
+          "expr": "split(datum.histogram_display_name, '::')"
+        },
+        {
           "type": "project",
-          "fields": ["node_name", "histogram_display_name", "minmax_split[0]", "minmax_split[1]", "minmax_float_split[0]", "minmax_float_split[1]", "time_type", "times_minmax_split[0]", "times_minmax_split[1]", "times", "histogram_data", "histogram_index", "subpanel_raw_name", "panel_index"],
-          "as": ["node_name", "histogram_display_name", "min_str", "max_str", "min_float", "max_float", "time_type", "time_min", "time_max", "times", "histogram_data", "histogram_index", "subpanel_raw_name", "panel_index"]
+          "fields": ["node_name", "histogram_display_name[0]", "histogram_display_name[1]", "minmax_split[0]", "minmax_split[1]", "minmax_float_split[0]", "minmax_float_split[1]", "time_type", "times_minmax_split[0]", "times_minmax_split[1]", "times", "histogram_data", "histogram_index", "subpanel_raw_name", "panel_index"],
+          "as": ["node_name", "histogram_display_name", "histogram_display_name_suffix", "min_str", "max_str", "min_float", "max_float", "time_type", "time_min", "time_max", "times", "histogram_data", "histogram_index", "subpanel_raw_name", "panel_index"]
         },
         {
           "type": "formula",
@@ -430,8 +435,8 @@
         },
         {
           "type": "project",
-          "fields": ["node_name", "histogram_display_name", "min_str", "max_str", "min_float", "max_float", "x_index", "y_index", "bin_count", "histogram_index", "subpanel_raw_name", "panel_index", "time_type", "time_min", "time_max", "time"],
-          "as": ["node_name", "histogram_display_name", "min_str", "max_str", "min_float", "max_float", "x_index", "y_index", "bin_count", "histogram_index", "subpanel_raw_name", "panel_index", "time_type", "time_min", "time_max", "time"]
+          "fields": ["node_name", "histogram_display_name", "histogram_display_name_suffix", "min_str", "max_str", "min_float", "max_float", "x_index", "y_index", "bin_count", "histogram_index", "subpanel_raw_name", "panel_index", "time_type", "time_min", "time_max", "time"],
+          "as": ["node_name", "histogram_display_name", "histogram_display_name_suffix", "min_str", "max_str", "min_float", "max_float", "x_index", "y_index", "bin_count", "histogram_index", "subpanel_raw_name", "panel_index", "time_type", "time_min", "time_max", "time"]
         },
         {
           "type": "filter",
@@ -1251,9 +1256,9 @@
                 {
                   "type": "aggregate",
                   "groupby": ["histogram_index", "histogram_x", "histogram_y"],
-                  "ops": ["max"],
-                  "fields": ["histogram_display_name"],
-                  "as": ["histogram_display_name"]
+                  "ops": ["max", "max"],
+                  "fields": ["histogram_display_name", "histogram_display_name_suffix"],
+                  "as": ["histogram_display_name", "histogram_display_name_suffix"]
                 }
               ]
             },
@@ -1476,13 +1481,34 @@
               "encode": {
                 "enter": {
                   "fill": {"value": "#000"},
-                  "text": {"signal": "datum.histogram_display_name"}
+                  "text": {"signal": "datum.histogram_display_name"},
+                  "tooltip": {"signal": "datum.histogram_display_name"}
                 },
                 "update": {
-                  "x": {"signal": "datum.histogram_x + histogram_margin + histogram_inner_width / 2"},
+                  "x": {"signal": "datum.histogram_x + histogram_margin"},
                   "y": {"signal": "13 + datum.histogram_y + subpanel_header_height"},
                   "baseline": {"value": "top"},
-                  "align": {"value": "center"},
+                  "align": {"value": "left"},
+                  "fontSize": {"value": 12},
+                  "limit": {"signal": "(histogram_inner_width - histogram_margin * 2) * 0.7"},
+                  "font": {"signal": "global_font"},
+                  "fontWeight": {"value": "bold"}
+                }
+              }
+            },
+            { "name": "histogram_display_name_suffix_texts",
+              "type": "text",
+              "from": {"data": "histogram_display_name_data"},
+              "encode": {
+                "enter": {
+                  "fill": {"value": "#666"},
+                  "text": {"signal": "datum.histogram_display_name_suffix"}
+                },
+                "update": {
+                  "x": {"signal": "datum.histogram_x + histogram_margin + histogram_inner_width"},
+                  "y": {"signal": "13 + datum.histogram_y + subpanel_header_height"},
+                  "baseline": {"value": "top"},
+                  "align": {"value": "right"},
                   "fontSize": {"value": 12},
                   "limit": {"signal": "histogram_inner_width - histogram_margin * 2"},
                   "font": {"signal": "global_font"}
@@ -1528,14 +1554,14 @@
               "encode": {
                 "enter": {
                   "stroke": {"value": "#000"},
-                  "opacity": {"value": 0.5}
+                  "opacity": {"value": 1.0}
                 },
                 "update": {
                   "x": {"signal": "10"},
                   "x2": {"signal": "panel_width - 10"},
                   "y": {"value": 14},
                   "y2": {"value": 14},
-                  "strokeWidth": {"value": 1.5}
+                  "strokeWidth": {"value": 2.0}
                 }
               }
             }

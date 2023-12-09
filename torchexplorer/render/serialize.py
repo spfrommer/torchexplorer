@@ -83,8 +83,12 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         raw_hists = [] if raw_hists is None else raw_hists
         grad_hists = [] if grad_hists is None else grad_hists
 
-        raw_prefixes = [f'{prefix} {i}' for i in range(len(raw_hists))]
-        grad_prefixes = [f'{prefix} {i} ({suffix})' for i in range(len(grad_hists))]
+        raw_prefixes = [
+            _serialize_list([f'{prefix} {i}', '']) for i in range(len(raw_hists))
+        ]
+        grad_prefixes = [
+            _serialize_list([f'{prefix} {i}', suffix]) for i in range(len(grad_hists))
+        ]
 
         if len(raw_hists) == len(grad_hists):
             joined_hists = utils.interleave(raw_hists, grad_hists)
@@ -102,13 +106,14 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
 
     def interleave_and_serialize_dict(
             raw_hists: Optional[dict[str, IncrementalHistogram]],
-            grad_hists: Optional[dict[str, IncrementalHistogram]]
+            grad_hists: Optional[dict[str, IncrementalHistogram]],
+            suffix: str
         ) -> str:
 
         raw_hists = {} if raw_hists is None else raw_hists
         grad_hists = {} if grad_hists is None else grad_hists
         
-        grad_hists = {f'{k} (grad)': v for k, v in grad_hists.items()}
+        grad_hists = {_serialize_list([k, suffix]): v for k, v in grad_hists.items()}
         # The hist_dict_str sorts alphabetically which does the interleaving
         joined_hists = {**raw_hists, **grad_hists}
 
@@ -138,7 +143,9 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
     output_hists_str = interleave_and_serialize_list(
         output_hists, output_grad_hists, 'output', 'grad norm'
     )
-    param_hists_str = interleave_and_serialize_dict(param_hists, param_grad_hists)
+    param_hists_str = interleave_and_serialize_dict(
+        param_hists, param_grad_hists, 'grad'
+    )
 
     assert (r.child_ids is not None) and (r.parent_stack is not None)
 
