@@ -67,6 +67,12 @@ pip install torchexplorer
 ### User interface
 **Explorer.** The left-hand panel contains a module-level graph of your network architecture, automatically extracted from the autograd graph. Clicking on a module will open its "internal" submodules. To return to a parent module, click on the appropriate element in the top-left expanding list.
 
+_Nodes._ A node in the explorer graph is either a) an input/output placeholder for the visualized module, or b) a specific invocation of a submodule of the visualized module. If the visualized module has multiple inputs to its `forward` function, these will appear as multiple nodes ("Input 0", "Input 1", ...). A similar logic applies to outputs. All other nodes represent a distinct submodule invocation. This means that if a particular submodule is called twice in one forwards pass, these two invocations show up separately in the explorer graph. Their histograms and "internal" submodules will also be distinct.
+
+_Edges._ An edge between two nodes means that there exists a autograd trace from some output of the parent node to some input of the child mode. **The number of incoming / outgoing edges to a node is unrelated to how many inputs/outputs the `forward` function takes.** To illustrate this, let's consider a `Linear` node with two incoming edges from two distinct parent nodes. This can arise if, say, the outputs of the parent modules are added together and then passed to the single `forward` function input. Conversely, consider a `TransformerEncoderLayer` node, which accepts multiple inputs. There may still only be one incoming edge from a parent module, if all the inputs to the `TransformerEncoderLayer` are computed from this source.
+
+_Tooltips._ Mousing over explorer graph nodes displays a helpful tooltip. The first few lines summarize the shapes of the input / output tensors, recorded once from the first forwards pass through the network. The subsequent lines parse key information from `module.extra_repr()`. This string parsing is designed around common PyTorch `extra_repr()` implementations (e.g., `nn.Conv2d`). The string is first split on commas, with each resulting string becoming one row in the tooltip. If a resulting substring is of the form "{key}={value}", these become the key and value pairs for the tooltip. Otherwise the entire string is treated as a value with an empty key, visualized using a dash. This occurs for the `in_channels` and `out_channels` attributes for `Conv2d`.
+
 **Panels.** To inspect a module in more detail, just drag and drop it into one of the columns on the right. The histogram colors don't represent anything intrinsically—they're just to help identify in the explorer which modules are being visualized.
 
 **Histograms.** Each vertical "slice" of a histogram encodes the distribution of values at the corresponding x-axis time. The y-axis displays the minimum / maximum bounds of the histogram. Completely white squares mean that no data fell in that bin. A bin with one entry will be shaded light gray, with the color intensifying as more values fall in that bin (this encodes the "height" of the histogram). The dashed horizontal line is the $y=0$ line.
@@ -95,7 +101,8 @@ _Parameter gradient histograms._ After the `backward` call is completed, each pa
 
 ## API
 
-For wandb training, make sure to call `torchexplorer.setup()` before `wandb.init()`. This will configure subprocess open file limits to work around some wandb limitations.
+> [!NOTE]
+> For wandb training, make sure to call `torchexplorer.setup()` before `wandb.init()`. This will configure subprocess open file limits to work around some wandb limitations.
 
 Then the main api surface is just one function call, inspired by wandb's [watch](https://docs.wandb.ai/ref/python/watch).
 

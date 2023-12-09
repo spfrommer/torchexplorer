@@ -27,6 +27,7 @@ class TooltipRenderable:
     top_right_corner: list[float] = field(default_factory=lambda: [0, 0])
 
 
+# Either a specific module invocation or for IO
 @dataclass
 class ModuleInvocationRenderable:
     display_name: Optional[str] = None

@@ -58,6 +58,33 @@ def test_repeat_relu_nested():
     wandb.finish()
 
 
+class RepeatedSubmodule(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(10, 10)
+
+    def forward(self, x):
+        return self.fc1(x)
+
+
+def test_repeat_submodule():
+    X = torch.randn(5, 10)
+    y = torch.randn(5, 10)
+
+    repeated = RepeatedSubmodule()
+
+    model = nn.Sequential(
+        repeated,
+        nn.ReLU(),
+        repeated
+    )
+
+    wandb.init(**wandb_init_params, name='repeat_submodule_test')
+    watch(model, log_freq=1, ignore_io_grad_classes=[], backend='wandb')
+    infra.run_trial(model, X, y, steps=5)
+    wandb.finish()
+
+
 def test_resnet():
     X = torch.randn(5, 3, 32, 32)
     y = torch.randn(5, 1000)
