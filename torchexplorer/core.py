@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Tuple
 import torch
 from torch import Tensor
 from torch import nn
@@ -16,8 +16,12 @@ GradFn = torch.autograd.Function
 InvocationId = int
 ParamName = str
 OTensor = Optional[Tensor]
-# For tracking the size of inputs / outputs
-AdaptiveSize = Optional[List[Optional[int]]]
+# The second index is the tensor type
+
+@dataclass
+class SizeTracker:
+    size: Optional[List[Optional[int]]]
+    type: str
 
 @dataclass
 class ModuleInvocationHistograms:
@@ -59,8 +63,8 @@ class ExplorerMetadata:
     # particular dimension has variable size, it is recorded as None. If the number of
     # dimensions is variable, the size overall is just None. The list is for multiple
     # inputs / outputs.
-    input_sizes: dict[InvocationId, list[AdaptiveSize]] = dict_field()
-    output_sizes: dict[InvocationId, list[AdaptiveSize]] = dict_field()
+    input_sizes: dict[InvocationId, list[SizeTracker]] = dict_field()
+    output_sizes: dict[InvocationId, list[SizeTracker]] = dict_field()
 
 
 class ModuleInvocationStructure():

@@ -8,7 +8,7 @@ from torch import Tensor
 from typing import Callable, Optional, Union, Tuple
 
 from torchexplorer.core import (
-    AdaptiveSize, ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms,
+    SizeTracker, ModuleInvocationHistograms, ExplorerMetadata, ModuleSharedHistograms,
     OTensor, GradFn
 )
 
@@ -164,18 +164,18 @@ def _add_tracking_hooks(module: Module, should_log_callable: Callable):
 
 def _add_size_record_hooks(module: Module, should_log_callable: Callable):
     def record_sizes(
-            tensors: tuple[OTensor, ...], tensor_sizes: list[AdaptiveSize]
+            tensors: tuple[OTensor, ...], tensor_trackers: list[SizeTracker]
         ) -> None:
         for i, tensor in utils.enum_not_none(tensors):
             shape = list(tensor.shape)
 
-            if len(tensor_sizes) <= i:
-                tensor_sizes.append(shape)
-            elif tensor_sizes[i] is not None:
-                stored_shape = tensor_sizes[i]
+            if len(tensor_trackers) <= i:
+                tensor_trackers.append(SizeTracker(shape, tensor.type()))
+            elif tensor_trackers[i].size is not None:
+                stored_shape = tensor_trackers[i].size
                 assert stored_shape is not None
                 if len(shape) != len(stored_shape):
-                    tensor_sizes[i] = None
+                    tensor_trackers[i].size = None
                 
                 # TODO: with graphviz caching, this actually doesn't need to run
                 # since only the first pass sizes are stored.
