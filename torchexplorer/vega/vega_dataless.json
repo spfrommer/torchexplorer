@@ -1585,14 +1585,14 @@
           "type": "text",
           "encode": {
             "update": {
-              "x": {"signal": "panel_width/2"},
+              "x": {"signal": "histogram_margin + 7"},
               "y": {"signal": "panel_header_height/2-2"},
               "fontSize": {"value": 20},
               "font": {"signal": "global_font"},
-              "align": {"value": "center"},
+              "align": {"value": "left"},
               "baseline": {"value": "middle"},
               "text": {"signal": "parent.node_name"},
-              "limit": {"signal": "panel_width - histogram_margin * 2 - 4 * panel_header_button_width"}
+              "limit": {"signal": "panel_width - histogram_margin * 2 - 2 * panel_header_button_width - 10"}
             }
           }
         },
