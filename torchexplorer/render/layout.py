@@ -15,30 +15,30 @@ from torchexplorer.core import ModuleInvocationHistograms, ModuleInvocationStruc
 from torchexplorer.structure.structure import is_input_node, is_io_node
 
 from torchexplorer.render.structs import (
-    EdgeRenderable, TooltipRenderable, ModuleInvocationRenderable
+    EdgeLayout, TooltipLayout, NodeLayout
 )
 
 
 def layout(
         structure: ModuleInvocationStructure, cache: Optional[dict] = None
-    ) -> tuple[ModuleInvocationRenderable, dict]:
+    ) -> tuple[NodeLayout, dict]:
 
     name = structure.module.__class__.__name__
     if is_io_node(name):
         raise RuntimeError(f'Invalid module name: {name}')
-    renderable = ModuleInvocationRenderable(display_name=name)
+    layout = NodeLayout(display_name=name)
 
     if cache is None:
-        _layout_into(renderable, structure, None)
+        _layout_into(layout, structure, None)
         cache = {'cached_structure': structure}
     else:
-        _layout_into(renderable, structure, cache['cached_structure'])
+        _layout_into(layout, structure, cache['cached_structure'])
 
-    _process_graph(renderable)
-    return renderable, cache
+    _process_graph(layout)
+    return layout, cache
 
 def _layout_into(
-        renderable: ModuleInvocationRenderable,
+        layout: NodeLayout,
         structure: ModuleInvocationStructure,
         cached_structure: Optional[ModuleInvocationStructure] = None
     ):
@@ -49,78 +49,97 @@ def _layout_into(
         draw_points = np.array(object['_draw_'][1]['points'])
         draw_xs, draw_ys = draw_points[:, 0], draw_points[:, 1]
 
-        inner_renderable = ModuleInvocationRenderable()
-        inner_renderable.display_name = object['label']
-        inner_renderable.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
-        inner_renderable.top_right_corner = [draw_xs.max(), draw_ys.max()]
+        inner_layout = NodeLayout()
+        inner_layout.display_name = object['label']
+        inner_layout.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
+        inner_layout.top_right_corner = [draw_xs.max(), draw_ys.max()]
 
         if is_io_node(object['label']):
-            is_input = is_input_node(object['label'])
-            metadata = structure.module_metadata()
-
-            io_index = int(object['name'].split(' ')[-1])
-            io_tensor_shape = (
-                metadata.input_sizes if is_input else metadata.output_sizes
-            )[structure.invocation_id][io_index]
-
-            _add_tooltip(inner_renderable, Tooltip.create_io(
-                io_tensor_shape, is_input
-            ))
-
-            hists = metadata.invocation_hists[structure.invocation_id]
-            grad_hists = metadata.invocation_grad_hists[structure.invocation_id]
-
-            hist = (hists.input_hists if is_input else hists.output_hists)[io_index]
-            grad_hist = (
-                grad_hists.input_hists if is_input else grad_hists.output_hists
-            )[io_index]
-
-            inner_renderable.invocation_hists = ModuleInvocationHistograms(
-                input_hists=[hist] if is_input else [],
-                output_hists=[hist] if not is_input else []
-            )
-
-            inner_renderable.invocation_grad_hists = ModuleInvocationHistograms(
-                input_hists=[grad_hist] if is_input else [],
-                output_hists=[grad_hist] if not is_input else []
-            )
+            _layout_io_node(inner_layout, structure, object)
         else:
-            structure_id = int(object['structure_id'])
-            object_struct = structure.get_inner_structure_from_id(structure_id)
-            assert object_struct is not None
+            struct = _layout_moduleinvocation_node(inner_layout, structure, object)
+            _layout_into(inner_layout, struct, object['cached_structure'])
 
-            _add_tooltip(inner_renderable, Tooltip.create_moduleinvocation(
-                object_struct.module, structure.module, object_struct.invocation_id
-            ))
-
-            metadata = object_struct.module_metadata()
-
-            if object_struct.invocation_id in metadata.invocation_hists:
-                inner_renderable.invocation_hists = (
-                    metadata.invocation_hists[object_struct.invocation_id]
-                )
-            if object_struct.invocation_id in metadata.invocation_grad_hists:
-                inner_renderable.invocation_grad_hists = (
-                    metadata.invocation_grad_hists[object_struct.invocation_id]
-                )
-            inner_renderable.shared_hists = metadata.shared_hists
-
-            _layout_into(inner_renderable, object_struct, object['cached_structure'])
-
-        renderable.inner_graph_renderables.append(inner_renderable)
+        layout.inner_graph_layouts.append(inner_layout)
     
     if 'edges' in json_data:
         for edge in json_data['edges']:
-            renderable.inner_graph_edges.append(EdgeRenderable(
+            layout.inner_graph_edges.append(EdgeLayout(
                 path_points=edge['_draw_'][-1]['points'],
                 arrowhead_points=edge['_hdraw_'][-1]['points'],
                 downstream_input_index=int(edge['downstream_input_index']),
                 upstream_output_index=int(edge['upstream_output_index']),
             ))
 
-    _translate_inner_renderables(renderable)
+    _translate_inner_layouts(layout)
 
-def _add_tooltip(renderable: ModuleInvocationRenderable, tooltip: Tooltip) -> None:
+def _layout_io_node(
+        layout: NodeLayout, parent_structure: ModuleInvocationStructure, object: dict
+    ) -> None:
+
+    is_input = is_input_node(object['label'])
+    parent_metadata = parent_structure.module_metadata()
+    parent_invocation_id = parent_structure.invocation_id
+
+    io_index = int(object['name'].split(' ')[-1])
+    io_tensor_shape = (
+        parent_metadata.input_sizes if is_input else parent_metadata.output_sizes
+    )[parent_invocation_id][io_index]
+
+    _add_tooltip(layout, Tooltip.create_io(
+        io_tensor_shape, is_input
+    ))
+
+    has_io_hists = parent_invocation_id in parent_metadata.invocation_hists
+    if has_io_hists:
+        hists = parent_metadata.invocation_hists[parent_invocation_id]
+        hist = (hists.input_hists if is_input else hists.output_hists)[io_index]
+
+    has_grad_hists = parent_invocation_id in parent_metadata.invocation_grad_hists
+    if has_grad_hists:
+        grad_hists = parent_metadata.invocation_grad_hists[parent_invocation_id]
+        grad_hist = (
+            grad_hists.input_hists if is_input else grad_hists.output_hists
+        )[io_index]
+
+    layout.invocation_hists = ModuleInvocationHistograms(
+        input_hists=[hist] if has_io_hists and is_input else [],
+        output_hists=[hist] if has_io_hists and (not is_input) else []
+    )
+
+    layout.invocation_grad_hists = ModuleInvocationHistograms(
+        input_hists=[grad_hist] if has_grad_hists and is_input else [],
+        output_hists=[grad_hist] if has_grad_hists and (not is_input) else []
+    )
+
+def _layout_moduleinvocation_node(
+        layout: NodeLayout, parent_structure: ModuleInvocationStructure, object: dict
+    ) -> ModuleInvocationStructure:
+
+    structure_id = int(object['structure_id'])
+    object_struct = parent_structure.get_inner_structure_from_id(structure_id)
+    assert object_struct is not None
+
+    _add_tooltip(layout, Tooltip.create_moduleinvocation(
+        object_struct.module, parent_structure.module, object_struct.invocation_id
+    ))
+
+    metadata = object_struct.module_metadata()
+
+    if object_struct.invocation_id in metadata.invocation_hists:
+        layout.invocation_hists = (
+            metadata.invocation_hists[object_struct.invocation_id]
+        )
+    if object_struct.invocation_id in metadata.invocation_grad_hists:
+        layout.invocation_grad_hists = (
+            metadata.invocation_grad_hists[object_struct.invocation_id]
+        )
+    layout.shared_hists = metadata.shared_hists
+
+    return object_struct
+
+
+def _add_tooltip(layout: NodeLayout, tooltip: Tooltip) -> None:
     tooltip_title_size, tooltip_font_size = 14, 11
     def _handle_string(str, truncate=False, title=False):
         font_size = tooltip_title_size if title else tooltip_font_size
@@ -139,65 +158,63 @@ def _add_tooltip(renderable: ModuleInvocationRenderable, tooltip: Tooltip) -> No
     tooltip_height = 20 + (tooltip_font_size + 2) * tooltip_lines
 
     tooltip_bl = [
-        renderable.top_right_corner[0] + 20, _center(renderable)[1] - tooltip_height / 2
+        layout.top_right_corner[0] + 20, _center(layout)[1] - tooltip_height / 2
     ]
     tooltip_tr = [tooltip_bl[0] + tooltip_width, tooltip_bl[1] + tooltip_height]
 
-    renderable.tooltip = TooltipRenderable(
+    layout.tooltip = TooltipLayout(
         tooltip, bottom_left_corner=tooltip_bl, top_right_corner=tooltip_tr
     ) 
 
-def _process_graph(renderable: ModuleInvocationRenderable):
-    renderable_id_counter = 0
+def _process_graph(layout: NodeLayout):
+    layout_id_counter = 0
 
-    def process_graph_renderable(
-        r: ModuleInvocationRenderable,
-        parent_id: int,
-        parent_stack: list[tuple[str, int]]
+    def process_graph_layout(
+        l: NodeLayout, parent_id: int, parent_stack: list[tuple[str, int]]
     ) -> list[int]:
 
-        nonlocal renderable_id_counter
-        new_id = renderable_id_counter
-        renderable_id_counter += 1
+        nonlocal layout_id_counter
+        new_id = layout_id_counter
+        layout_id_counter += 1
 
-        assert r.display_name is not None
-        new_stack = parent_stack + [(r.display_name, new_id)]
+        assert l.display_name is not None
+        new_stack = parent_stack + [(l.display_name, new_id)]
 
         child_ids = []
-        for inner_r in r.inner_graph_renderables:
-            child_ids += process_graph_renderable(inner_r, new_id, new_stack)
+        for inner_r in l.inner_graph_layouts:
+            child_ids += process_graph_layout(inner_r, new_id, new_stack)
         
-        r.id = new_id
-        r.parent_id = parent_id
-        r.parent_stack = new_stack
-        r.child_ids = child_ids
+        l.id = new_id
+        l.parent_id = parent_id
+        l.parent_stack = new_stack
+        l.child_ids = child_ids
 
         return [new_id] + child_ids
 
-    process_graph_renderable(renderable, -1, [])
+    process_graph_layout(layout, -1, [])
 
-def _translate_inner_renderables(renderable: ModuleInvocationRenderable) -> None:
+def _translate_inner_layouts(layout: NodeLayout) -> None:
     """Translate visual components to be centered around the input node."""
     target_input_pos = [0.0, 0.0]  # Based on where vega spec expects input to be
 
     input_centers = []
-    for r in renderable.inner_graph_renderables:
-        if is_input_node(r.display_name):
-            input_centers.append(_center(r))
+    for l in layout.inner_graph_layouts:
+        if is_input_node(l.display_name):
+            input_centers.append(_center(l))
 
     center = np.mean(np.array(input_centers), axis=0)
     trans = utils.list_add(target_input_pos, [-center[0], -center[1]])
 
-    def apply_translation(r):
-        r.bottom_left_corner = utils.list_add(r.bottom_left_corner, trans)
-        r.top_right_corner = utils.list_add(r.top_right_corner, trans)
+    def apply_translation(l: Union[NodeLayout, TooltipLayout]):
+        l.bottom_left_corner = utils.list_add(l.bottom_left_corner, trans)
+        l.top_right_corner = utils.list_add(l.top_right_corner, trans)
 
-    for r in renderable.inner_graph_renderables:
-        apply_translation(r)
-        if r.tooltip is not None:
-            apply_translation(r.tooltip)
+    for l in layout.inner_graph_layouts:
+        apply_translation(l)
+        if l.tooltip is not None:
+            apply_translation(l.tooltip)
 
-    for e in renderable.inner_graph_edges:
+    for e in layout.inner_graph_edges:
         e.path_points = [utils.list_add(p, trans) for p in e.path_points]
         e.arrowhead_points = [utils.list_add(p, trans) for p in e.arrowhead_points]
 
@@ -229,7 +246,6 @@ def _get_graphviz_json_with_caching(
     return json_data
 
 def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> dict:
-    # Graphviz carries through the node attributes from structure.py to the JSON 
     _label_nodes(structure)
     _unconstrain_skip_connections(structure.inner_graph)
 
@@ -299,7 +315,7 @@ def _truncate_string_width(st, font_size, truncate_width, truncate):
     return st, size_to_pixels * size
 
 
-def _center(r: Union[ModuleInvocationRenderable, TooltipRenderable]) -> list[float]:
+def _center(r: Union[NodeLayout, TooltipLayout]) -> list[float]:
     return [
         (r.bottom_left_corner[0] + r.top_right_corner[0]) / 2,
         (r.bottom_left_corner[1] + r.top_right_corner[1]) / 2

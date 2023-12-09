@@ -8,11 +8,11 @@ import wandb
 import sys
 
 from torchexplorer.render import serialize
-from torchexplorer.render.structs import ModuleInvocationRenderable
+from torchexplorer.render.structs import NodeLayout
 
 
 class Backend():
-    def update(self, renderable: ModuleInvocationRenderable):
+    def update(self, renderable: NodeLayout):
         raise NotImplementedError()
 
 
@@ -23,7 +23,7 @@ class WandbBackend(Backend):
         self.delete_counter = 0
         self.delete_old_artifact_lag = 10
 
-    def update(self, renderable: ModuleInvocationRenderable):
+    def update(self, renderable: NodeLayout):
         if wandb.run is None:
             raise ValueError('Must call `wandb.init` before `torchexplorer.watch`')
 
@@ -43,7 +43,7 @@ class WandbBackend(Backend):
         self.update_counter += 1
 
     def _wandb_table(
-            self, renderable: ModuleInvocationRenderable
+            self, renderable: NodeLayout
         ) -> tuple[wandb.Table, dict[str, str]]:
 
         rows = serialize.serialize_rows(renderable)
@@ -95,7 +95,7 @@ class StandaloneBackend(Backend):
         app.vega_spec_path = target_vega_path
         threading.Thread(target=lambda: app.app.run(port=standalone_port)).start()
 
-    def update(self, renderable: ModuleInvocationRenderable):
+    def update(self, renderable: NodeLayout):
         data = serialize.serialize_rows(renderable)
         target_app_path = os.path.abspath(self.standalone_dir)
 
@@ -108,5 +108,5 @@ class DummyBackend(Backend):
     def __init__(self):
         pass
 
-    def update(self, renderable: ModuleInvocationRenderable):
+    def update(self, renderable: NodeLayout):
         pass

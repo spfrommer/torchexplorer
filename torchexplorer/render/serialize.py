@@ -6,11 +6,11 @@ from torchexplorer import utils
 from torchexplorer.components.histogram import IncrementalHistogram
 
 from torchexplorer.render.structs import (
-    EdgeRenderable, TooltipRenderable, ModuleInvocationRenderable
+    EdgeLayout, TooltipLayout, NodeLayout
 )
 
-def serialize_rows(renderable: ModuleInvocationRenderable) -> list[dict]:
-    serialized = _serialize_renderable(renderable)
+def serialize_rows(layout: NodeLayout) -> list[dict]:
+    serialized = _serialize_layout(layout)
 
     all_augmented_keys = []
     for item_type, items in serialized.items():
@@ -29,33 +29,33 @@ def serialize_rows(renderable: ModuleInvocationRenderable) -> list[dict]:
 
     return rows
 
-def _serialize_renderable(renderable: ModuleInvocationRenderable) -> dict:
+def _serialize_layout(layout: NodeLayout) -> dict:
     nodes, edges = [], []
 
-    def process_renderable(r: ModuleInvocationRenderable):
-        new_node = _serialize_node(r)
-        new_node['active_on_id'] = r.parent_id
+    def process_layout(l: NodeLayout):
+        new_node = _serialize_node(l)
+        new_node['active_on_id'] = l.parent_id
         nodes.append(new_node)
 
-        for edge in r.inner_graph_edges:
+        for edge in l.inner_graph_edges:
             new_edge = _serialize_edge(edge)
-            new_edge['active_on_id'] = r.id
+            new_edge['active_on_id'] = l.id
             edges.append(new_edge)
 
-        for inner_r in r.inner_graph_renderables:
-            process_renderable(inner_r)
+        for inner_r in l.inner_graph_layouts:
+            process_layout(inner_r)
     
-    process_renderable(renderable)
+    process_layout(layout)
 
     return {'nodes': nodes, 'edges': edges}
 
-def _serialize_node(r: ModuleInvocationRenderable) -> dict:
-    def tooltip_str(renderable: Optional[TooltipRenderable]) -> str:
-        if renderable is None:
+def _serialize_node(layout: NodeLayout) -> dict:
+    def tooltip_str(l: Optional[TooltipLayout]) -> str:
+        if l is None:
             return ''
-        bl_corn, tr_corn = renderable.bottom_left_corner, renderable.top_right_corner
-        title = renderable.tooltip.title
-        keys, vals = renderable.tooltip.keys, renderable.tooltip.vals
+        bl_corn, tr_corn = l.bottom_left_corner, l.top_right_corner
+        title = l.tooltip.title
+        keys, vals = l.tooltip.keys, l.tooltip.vals
 
         corners_str = _serialize_list(bl_corn + tr_corn)
         return _mid_join(
@@ -125,18 +125,18 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
             if len(joined_hists[k].history_bins) > 0
         ])
     
-    def renderable_resolve(attr1: str, attr2: str):
-        if getattr(r, attr1) is not None:
-            return getattr(getattr(r, attr1), attr2)
+    def layout_resolve(attr1: str, attr2: str):
+        if getattr(layout, attr1) is not None:
+            return getattr(getattr(layout, attr1), attr2)
         return None
 
 
-    input_hists = renderable_resolve('invocation_hists', 'input_hists')
-    output_hists = renderable_resolve('invocation_hists', 'output_hists')
-    input_grad_hists = renderable_resolve('invocation_grad_hists', 'input_hists')
-    output_grad_hists = renderable_resolve('invocation_grad_hists', 'output_hists')
-    param_hists = renderable_resolve('shared_hists', 'param_hists')
-    param_grad_hists = renderable_resolve('shared_hists', 'param_grad_hists')
+    input_hists = layout_resolve('invocation_hists', 'input_hists')
+    output_hists = layout_resolve('invocation_hists', 'output_hists')
+    input_grad_hists = layout_resolve('invocation_grad_hists', 'input_hists')
+    output_grad_hists = layout_resolve('invocation_grad_hists', 'output_hists')
+    param_hists = layout_resolve('shared_hists', 'param_hists')
+    param_grad_hists = layout_resolve('shared_hists', 'param_grad_hists')
     
 
     input_hists_str = interleave_and_serialize_list(
@@ -149,27 +149,27 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         param_hists, param_grad_hists, 'grad'
     )
 
-    assert (r.child_ids is not None) and (r.parent_stack is not None)
+    assert (layout.child_ids is not None) and (layout.parent_stack is not None)
 
     new_object = {
-        'id': r.id,
-        'child_ids': _serialize_list(r.child_ids),
-        'parent_stack': _serialize_lists_nest2(r.parent_stack),
-        'display_name': r.display_name,
-        'tooltip': tooltip_str(r.tooltip),
+        'id': layout.id,
+        'child_ids': _serialize_list(layout.child_ids),
+        'parent_stack': _serialize_lists_nest2(layout.parent_stack),
+        'display_name': layout.display_name,
+        'tooltip': tooltip_str(layout.tooltip),
         'input_histograms': input_hists_str,
         'output_histograms': output_hists_str,
         'param_histograms': param_hists_str,
 
-        'bottom_left_corner_x': r.bottom_left_corner[0],
-        'bottom_left_corner_y': r.bottom_left_corner[1],
-        'top_right_corner_x': r.top_right_corner[0],
-        'top_right_corner_y': r.top_right_corner[1],
+        'bottom_left_corner_x': layout.bottom_left_corner[0],
+        'bottom_left_corner_y': layout.bottom_left_corner[1],
+        'top_right_corner_x': layout.top_right_corner[0],
+        'top_right_corner_y': layout.top_right_corner[1],
     }
 
     return new_object
 
-def _serialize_edge(edge: EdgeRenderable) -> dict:
+def _serialize_edge(edge: EdgeLayout) -> dict:
     def interpolate_points(points: list[list[float]]):
         # Sometimes lines are very long, which get dissapeared if one end goes off
         # renderer. So we want to interpolate these long edges linearly
