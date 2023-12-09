@@ -88,11 +88,11 @@ class ModuleInvocationStructure():
 
         for i in range(input_n):
             name = f'Input {i}'
-            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip={})
+            self.inner_graph.add_node(name, memory_id=None, label=name)
         
         for i in range(output_n):
             name = f'Output {i}'
-            self.inner_graph.add_node(name, memory_id=None, label=name, tooltip={})
+            self.inner_graph.add_node(name, memory_id=None, label=name)
 
         self.upstreams_fetched = False
 

@@ -83,11 +83,13 @@ def _serialize_node(r: ModuleInvocationRenderable) -> dict:
         raw_hists = [] if raw_hists is None else raw_hists
         grad_hists = [] if grad_hists is None else grad_hists
 
+        raw_prestr = lambda i: f'{prefix} {i}' if len(raw_hists) > 1 else prefix
+        grad_prestr = lambda i: f'{prefix} {i}' if len(grad_hists) > 1 else prefix
         raw_prefixes = [
-            _serialize_list([f'{prefix} {i}', '']) for i in range(len(raw_hists))
+            _serialize_list([raw_prestr(i), '']) for i in range(len(raw_hists))
         ]
         grad_prefixes = [
-            _serialize_list([f'{prefix} {i}', suffix]) for i in range(len(grad_hists))
+            _serialize_list([grad_prestr(i), suffix]) for i in range(len(grad_hists))
         ]
 
         if len(raw_hists) == len(grad_hists):

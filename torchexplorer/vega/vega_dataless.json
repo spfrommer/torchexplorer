@@ -590,7 +590,7 @@
       "on": [
         {
           "events": "@node_texts:mouseover, @node_rects:mouseover",
-          "update": "if(datum.interactive, datum.id, -1)"
+          "update": "datum.id"
         },
         {
           "events": "@node_texts:mouseout, @node_rects:mouseout",
@@ -678,7 +678,7 @@
       "on": [
         {
           "events": "@node_texts:mousedown{0,100}, @node_rects:mousedown{0,100}",
-          "update": "if(mouse_button_down && datum.interactive, datum.id, -1)"
+          "update": "if(mouse_button_down, datum.id, -1)"
         },
         {
           "events": "mouseup",
@@ -690,7 +690,7 @@
       "on": [
         {
           "events": "@node_rects:mousedown, @node_texts:mousedown",
-          "update": "if(datum.interactive, {'width': datum.top_right_corner_x - datum.bottom_left_corner_x, 'height': datum.top_right_corner_y - datum.bottom_left_corner_y, 'display_name': datum.display_name}, dragged_node_metadata)"
+          "update": "{'width': datum.top_right_corner_x - datum.bottom_left_corner_x, 'height': datum.top_right_corner_y - datum.bottom_left_corner_y, 'display_name': datum.display_name}"
         }
       ]
     },

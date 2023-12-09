@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 from torch.nn import Module, ModuleList, ModuleDict
 
-from torchexplorer.core import InvocationId
+from torchexplorer.core import AdaptiveSize, InvocationId
 
 class Tooltip:
     """The tooltip that pops up next to a Module."""
@@ -13,7 +13,16 @@ class Tooltip:
         self.vals = vals
     
     @classmethod
-    def create(
+    def create_io(
+            cls, tensor_size: AdaptiveSize, is_input: bool
+        ) -> 'Tooltip':
+
+        name = 'Input' if is_input else 'Output'
+        keys, vals = ['size'], [str(tensor_size).replace('None', '—')]
+        return Tooltip(name, keys, vals)
+    
+    @classmethod
+    def create_moduleinvocation(
             cls, module: Module, parent_module: Module, invocation_id: InvocationId
         ) -> 'Tooltip':
 

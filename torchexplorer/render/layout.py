@@ -11,7 +11,7 @@ from subprocess import Popen, PIPE
 from torchexplorer import utils
 from torchexplorer.components.tooltip import Tooltip
 
-from torchexplorer.core import ModuleInvocationStructure
+from torchexplorer.core import ModuleInvocationHistograms, ModuleInvocationStructure
 from torchexplorer.structure.structure import is_input_node, is_io_node
 
 from torchexplorer.render.structs import (
@@ -54,12 +54,42 @@ def _layout_into(
         inner_renderable.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
         inner_renderable.top_right_corner = [draw_xs.max(), draw_ys.max()]
 
-        if not is_io_node(object['label']):
+        if is_io_node(object['label']):
+            is_input = is_input_node(object['label'])
+            metadata = structure.module_metadata()
+
+            io_index = int(object['name'].split(' ')[-1])
+            io_tensor_shape = (
+                metadata.input_sizes if is_input else metadata.output_sizes
+            )[structure.invocation_id][io_index]
+
+            _add_tooltip(inner_renderable, Tooltip.create_io(
+                io_tensor_shape, is_input
+            ))
+
+            hists = metadata.invocation_hists[structure.invocation_id]
+            grad_hists = metadata.invocation_grad_hists[structure.invocation_id]
+
+            hist = (hists.input_hists if is_input else hists.output_hists)[io_index]
+            grad_hist = (
+                grad_hists.input_hists if is_input else grad_hists.output_hists
+            )[io_index]
+
+            inner_renderable.invocation_hists = ModuleInvocationHistograms(
+                input_hists=[hist] if is_input else [],
+                output_hists=[hist] if not is_input else []
+            )
+
+            inner_renderable.invocation_grad_hists = ModuleInvocationHistograms(
+                input_hists=[grad_hist] if is_input else [],
+                output_hists=[grad_hist] if not is_input else []
+            )
+        else:
             structure_id = int(object['structure_id'])
             object_struct = structure.get_inner_structure_from_id(structure_id)
             assert object_struct is not None
 
-            _add_tooltip(inner_renderable, Tooltip.create(
+            _add_tooltip(inner_renderable, Tooltip.create_moduleinvocation(
                 object_struct.module, structure.module, object_struct.invocation_id
             ))
 
