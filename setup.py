@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='torchexplorer',
-    version='0.4.1',
+    version='0.5.0',
     description="Interactively inspect pytorch modules during training.",
     long_description=long_description,
     long_description_content_type="text/markdown",
