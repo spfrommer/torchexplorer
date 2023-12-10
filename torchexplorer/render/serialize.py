@@ -77,7 +77,8 @@ def _serialize_node(layout: NodeLayout) -> dict:
             raw_hists: Optional[list[IncrementalHistogram]],
             grad_hists: Optional[list[IncrementalHistogram]],
             prefix: str,
-            suffix: str
+            raw_suffix: str,
+            grad_suffix: str
         ) -> str:
 
         raw_hists = [] if raw_hists is None else raw_hists
@@ -86,10 +87,11 @@ def _serialize_node(layout: NodeLayout) -> dict:
         raw_prestr = lambda i: f'{prefix} {i}' if len(raw_hists) > 1 else prefix
         grad_prestr = lambda i: f'{prefix} {i}' if len(grad_hists) > 1 else prefix
         raw_prefixes = [
-            _serialize_list([raw_prestr(i), '']) for i in range(len(raw_hists))
+            _serialize_list([raw_prestr(i), raw_suffix]) for i in range(len(raw_hists))
         ]
         grad_prefixes = [
-            _serialize_list([grad_prestr(i), suffix]) for i in range(len(grad_hists))
+            _serialize_list([grad_prestr(i), grad_suffix])
+            for i in range(len(grad_hists))
         ]
 
         if len(raw_hists) == len(grad_hists):
@@ -109,13 +111,19 @@ def _serialize_node(layout: NodeLayout) -> dict:
     def interleave_and_serialize_dict(
             raw_hists: Optional[dict[str, IncrementalHistogram]],
             grad_hists: Optional[dict[str, IncrementalHistogram]],
-            suffix: str
+            raw_suffix: str,
+            grad_suffix: str
         ) -> str:
 
         raw_hists = {} if raw_hists is None else raw_hists
         grad_hists = {} if grad_hists is None else grad_hists
         
-        grad_hists = {_serialize_list([k, suffix]): v for k, v in grad_hists.items()}
+        raw_hists = {
+            _serialize_list([k, raw_suffix]): v for k, v in raw_hists.items()
+        }
+        grad_hists = {
+            _serialize_list([k, grad_suffix]): v for k, v in grad_hists.items()
+        }
         # The hist_dict_str sorts alphabetically which does the interleaving
         joined_hists = {**raw_hists, **grad_hists}
 
@@ -140,13 +148,13 @@ def _serialize_node(layout: NodeLayout) -> dict:
     
 
     input_hists_str = interleave_and_serialize_list(
-        input_hists, input_grad_hists, 'input', 'grad norm'
+        input_hists, input_grad_hists, 'input', 'raw val', 'grad norm'
     )
     output_hists_str = interleave_and_serialize_list(
-        output_hists, output_grad_hists, 'output', 'grad norm'
+        output_hists, output_grad_hists, 'output', 'raw val', 'grad norm'
     )
     param_hists_str = interleave_and_serialize_dict(
-        param_hists, param_grad_hists, 'grad'
+        param_hists, param_grad_hists, 'raw val', 'grad'
     )
 
     assert (layout.child_ids is not None) and (layout.parent_stack is not None)
