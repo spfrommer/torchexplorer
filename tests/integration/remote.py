@@ -85,6 +85,27 @@ def test_repeat_submodule():
     wandb.finish()
 
 
+class EmbeddingModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.embedding = nn.Embedding(10, 20)
+        self.linear = nn.Linear(20, 20)
+
+    def forward(self, x):
+        return self.linear(self.embedding(x))
+
+def test_embedding():
+    X = torch.LongTensor([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]])
+    y = torch.randn(2, 5, 20)
+
+    model = EmbeddingModule()
+
+    wandb.init(**wandb_init_params, name='repeat_submodule_test')
+    watch(model, log_freq=1, ignore_io_grad_classes=[], backend='wandb')
+    infra.run_trial(model, X, y, steps=5)
+    wandb.finish()
+
+
 def test_resnet():
     X = torch.randn(5, 3, 32, 32)
     y = torch.randn(5, 1000)
