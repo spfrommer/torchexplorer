@@ -33,7 +33,7 @@ def main(backend):
 
     watch(
         model,
-        log_freq=1,
+        log_freq=1000,
         disable_inplace=True,
         ignore_io_grad_classes=[torchvision.models.resnet.BasicBlock],
         time_log=LIGHTNING_EPOCHS,
