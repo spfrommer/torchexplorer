@@ -626,6 +626,18 @@
     { "name": "panels_node_id",
       "update": "slice(panels_node_id_all, 0, panel_n)"
     },
+    { "name": "panels_parents_node_id_all",
+      "value": [-1, -1, -1, -1, -1],
+      "on": [
+        {
+          "events": "mouseup",
+          "update": "if(dragged_node_id < 0, panels_parents_node_id_all, [if(mouseover_panel_id==0, active_node_id, if(dragged_node_id==panels_node_id_all[0], -1, panels_parents_node_id_all[0])), if(mouseover_panel_id==1, active_node_id, if(dragged_node_id==panels_node_id_all[1], -1, panels_parents_node_id_all[1])), if(mouseover_panel_id==2, active_node_id, if(dragged_node_id==panels_node_id_all[2], -1, panels_parents_node_id_all[2])), if(mouseover_panel_id==3, active_node_id, if(dragged_node_id==panels_node_id_all[3], -1, panels_parents_node_id_all[3])), if(mouseover_panel_id==4, active_node_id, if(dragged_node_id==panels_node_id_all[4], -1, panels_parents_node_id_all[4]))])"
+        }
+      ]
+    },
+    { "name": "panels_parents_node_id",
+      "update": "slice(panels_parents_node_id_all, 0, panel_n)"
+    },
     { "name": "scroll_event_delta",
       "value": "0",
       "on": [
@@ -1116,7 +1128,7 @@
           "on": [
             {
               "events": "@panel_find_button:click",
-              "update": "panels_node_id[parent.panel_index]"
+              "update": "panels_parents_node_id[parent.panel_index]"
             }
           ]
         },
