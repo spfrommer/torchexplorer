@@ -1732,6 +1732,22 @@
           "fontSize": {"value": 18}
         }
       }
+    },
+    { "name": "help_button_text",
+      "type": "text",
+      "encode": {
+        "update": {
+          "x": {"signal": "explorer_width - 10"},
+          "y": {"signal": "5"},
+          "fontSize": {"value": 25},
+          "font": {"signal": "global_font"},
+          "align": {"value": "right"},
+          "baseline": {"value": "top"},
+          "text": {"value": "?"},
+          "tooltip": {"value": "Shift-click for help"},
+          "href": {"value": "https://github.com/spfrommer/torchexplorer#user-interface"}
+        }
+      }
     }
   ]
 }
