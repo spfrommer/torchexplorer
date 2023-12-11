@@ -66,6 +66,11 @@ pip install torchexplorer
 For Mac, `brew install graphviz` should suffice.
 
 ## User interface
+
+<p align="center">
+  <img src="./res/help.png" width="850"/>
+</p>
+
 ### Explorer
 The left-hand panel contains a module-level graph of your network architecture, automatically extracted from the autograd graph. Clicking on a module will open its "internal" submodules. To return to a parent module, click on the appropriate element in the top-left expanding list.
 
