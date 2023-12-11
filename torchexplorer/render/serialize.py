@@ -154,7 +154,8 @@ def _serialize_node(layout: NodeLayout) -> dict:
         output_hists, output_grad_hists, 'output', 'raw val', 'grad norm'
     )
     param_hists_str = interleave_and_serialize_dict(
-        param_hists, param_grad_hists, 'raw val', 'grad'
+        # Space is a hack so that the dict ordering works properly
+        param_hists, param_grad_hists, ' raw val', 'grad'
     )
 
     assert (layout.child_ids is not None) and (layout.parent_stack is not None)

@@ -133,7 +133,6 @@ def watch(
     def post_backward_hook(_, __, ___):
         # This hook is called after we've backprop'd and called all the other hooks
         nonlocal step_counter, backend_handler, wrapper, layout_cache
-        step_counter += 1
 
         if should_log_callable():
             time = time_fn(module, step_counter)
@@ -147,6 +146,7 @@ def watch(
             renderable, layout_cache = layout.layout(wrapper.structure, layout_cache)
             backend_handler.update(renderable)
 
+        step_counter += 1
 
     module.register_forward_hook(post_forward_hook)
     module.register_full_backward_hook(post_backward_hook)

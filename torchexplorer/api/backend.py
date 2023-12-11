@@ -82,6 +82,9 @@ class StandaloneBackend(Backend):
         source_vega_path = os.path.join(source_explorer_dir, 'vega/vega_dataless.json')
         target_vega_path = os.path.join(target_app_path, 'vega_dataless.json')
 
+        if os.path.exists(os.path.join(target_app_path, 'data', 'data.json')):
+            os.remove(os.path.join(target_app_path, 'data', 'data.json'))
+
         if not os.path.exists(target_app_path):
             shutil.copytree(source_app_path, target_app_path)
             shutil.copyfile(source_vega_path, target_vega_path)
