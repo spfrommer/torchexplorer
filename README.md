@@ -263,3 +263,16 @@ wandb: WARNING Failed to cache... too many open files
 
 This is a [known bug](https://github.com/wandb/wandb/issues/2825) in wandb when uploading many tables. The only workaround I have for now is to modify the `ulimit` from the default of `1024` to `50000` by calling `torchexplorer.setup()` before `wandb.init()`. You can also try increasing `log_freq` so that fewer tables are logged. If you're still getting issues, you might have to edit `/etc/security/limits.conf` as [described here](https://unix.stackexchange.com/a/691947).
 
+## Related tools
+A partial list of some related tools. The first section concerns visualizing model structure, and the second section concerns visualizing parameters/activations during training. TorchExplorer combines these in an interactive way. TorchExplorer also stands out by only showing nested submodules if you click into a submodule, keeping the interface a little cleaner in my opinion.
+
+_Model structure visualization._
+1. [Netron](https://github.com/lutzroeder/netron)
+2. [torchviz](https://github.com/szagoruyko/pytorchviz)
+3. [hiddenlayer](https://github.com/waleedka/hiddenlayer)
+4. [torchview](https://github.com/mert-kurttutan/torchview)
+5. [plotneuralnet](https://github.com/HarisIqbal88/PlotNeuralNet)
+
+_Parameter/activation visualization._
+1. [wandb.watch](https://docs.wandb.ai/ref/python/watch)
+2. [tensorboard histograms](https://github.com/tensorflow/tensorboard/blob/master/docs/r1/histograms.md)
