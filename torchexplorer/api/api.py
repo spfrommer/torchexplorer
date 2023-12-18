@@ -123,30 +123,39 @@ def watch(
     )
 
 
+    layout_cache = None
+    backward_last_called = False
     def post_forward_hook(module, __, ___):
-        nonlocal step_counter, wrapper
+        nonlocal step_counter, backend_handler, wrapper, layout_cache
+        nonlocal backward_last_called
         if module.training and (wrapper.structure is None):
             wrapper.structure = structure.extract_structure(module)
+        
+        if backward_last_called:
+            if should_log_callable():
+                time = time_fn(module, step_counter)
+                hook.push_histogram_histories(
+                    module,
+                    hist_params,
+                    time=time,
+                    log_params='params' in log,
+                    log_params_grad='params_grad' in log
+                )
+                renderable, layout_cache = layout.layout(wrapper.structure, layout_cache)
+                backend_handler.update(renderable)
+
+            step_counter += 1
+            backward_last_called = False
 
 
-    layout_cache = None
     def post_backward_hook(_, __, ___):
         # This hook is called after we've backprop'd and called all the other hooks
-        nonlocal step_counter, backend_handler, wrapper, layout_cache
+        nonlocal backward_last_called
 
-        if should_log_callable():
-            time = time_fn(module, step_counter)
-            hook.push_histogram_histories(
-                module,
-                hist_params,
-                time=time,
-                log_params='params' in log,
-                log_params_grad='params_grad' in log
-            )
-            renderable, layout_cache = layout.layout(wrapper.structure, layout_cache)
-            backend_handler.update(renderable)
-
-        step_counter += 1
+        # We need this fancy scheme in case our module is invoked twice and both 
+        # outputs go into the loss. Then we get two backward_hook invocations on one
+        # backwards pass, but we only want to push histograms once for this.
+        backward_last_called = True
 
     module.register_forward_hook(post_forward_hook)
     module.register_full_backward_hook(post_backward_hook)

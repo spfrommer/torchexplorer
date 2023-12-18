@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import torchvision
 import torch
 from torch import nn
+from torch import optim
 
 from torchexplorer import watch
 
@@ -74,14 +75,46 @@ def test_repeat_submodule():
     repeated = RepeatedSubmodule()
 
     model = nn.Sequential(
-        repeated,
-        nn.ReLU(),
-        repeated
+        repeated, nn.ReLU(), repeated
     )
 
     wandb.init(**wandb_init_params, name='repeat_submodule_test')
     watch(model, log_freq=1, ignore_io_grad_classes=[], backend='wandb')
     infra.run_trial(model, X, y, steps=5)
+    wandb.finish()
+
+
+def test_repeat_submodule_multiforward():
+    X = torch.randn(5, 10).to(infra.DEVICE)
+    y = torch.randn(5, 10).to(infra.DEVICE)
+
+    repeated = RepeatedSubmodule()
+
+    model = nn.Sequential(
+        repeated, nn.ReLU(), repeated
+    ).to(infra.DEVICE)
+
+    wandb.init(**wandb_init_params, name='repeat_submodule_multiforward_test')
+    watch(
+        model, log_freq=1, ignore_io_grad_classes=[], backend='wandb',
+        # delay_log_multi_backward=True
+    )
+
+    optimizer = optim.SGD(model.parameters(), lr=1e-2)
+    loss_fn = torch.nn.MSELoss()
+
+    for _ in range(5):
+        yhat1 = model(X)
+        yhat2 = model(X + 5)
+        yhat = yhat1 * 0.0 + yhat2
+        loss = loss_fn(yhat, y)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+
+        model(X)
+
+    # Expecting two bands on the gradients and two bands on the io values
     wandb.finish()
 
 

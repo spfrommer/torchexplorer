@@ -80,16 +80,17 @@ def hook(
     def _add_metadata(module: Module):
         module.torchexplorer_metadata = ExplorerMetadata() # type: ignore
 
-    def _clear_temporary_metadata(module: Module):
+    def _clear_temporary_metadata_forward(module: Module):
         module.torchexplorer_metadata.input_gradfns.clear()
         module.torchexplorer_metadata.output_gradfns.clear()
         module.torchexplorer_metadata.forward_invocation_counter = 0
-        module.torchexplorer_metadata.backward_invocation_counter = 0
+        # module.torchexplorer_metadata.backward_invocation_counter = 0
 
     module.apply(_add_metadata)
 
+    @return_if_not_should_log(should_log_callable)
     def pre_hook(module: Module, inputs: tuple[OTensor, ...]):
-        module.apply(_clear_temporary_metadata)
+        module.apply(_clear_temporary_metadata_forward)
         # Make sure we are tracking gradients back to inputs
         return _add_dummy(inputs)
 
@@ -104,6 +105,14 @@ def hook(
         _add_io_grad_histogram_hooks(
             module, hist_params, should_log_callable, ignore_io_grad_classes
         )
+    
+    def _clear_temporary_metadata_backward(module: Module):
+        module.torchexplorer_metadata.backward_invocation_counter = 0
+
+    @return_if_not_should_log(should_log_callable)
+    def backward_hook(module: Module, _, __):
+        module.apply(_clear_temporary_metadata_backward)
+    module.register_full_backward_hook(backward_hook)
 
 def _add_tracking_hooks(module: Module, should_log_callable: Callable):
     @return_if_not_should_log(should_log_callable)

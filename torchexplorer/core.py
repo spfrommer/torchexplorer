@@ -43,12 +43,13 @@ class ModuleSharedHistograms:
 class ExplorerMetadata:
     """Metadata associated to a module, saved as 'module.torchexplorer_metadata'."""
 
+    has_tracking_hooks = False
+
     # Cleared before every forwards pass
     input_gradfns: dict[InvocationId, tuple[Optional[GradFn], ...]] = dict_field()
     output_gradfns: dict[InvocationId, tuple[Optional[GradFn], ...]] = dict_field()
     forward_invocation_counter = 0
     backward_invocation_counter = 0
-    has_tracking_hooks = False
 
     # Histograms are persisted during trainng
     invocation_hists: dict[InvocationId, ModuleInvocationHistograms] = dict_field()

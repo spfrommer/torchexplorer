@@ -63,6 +63,40 @@ def test_basic_mlp_histograms():
         assert len(grad_hists.input_hists[0].history_bins) == epochs
         assert len(grad_hists.output_hists[0].history_bins) == epochs
 
+def test_double_forward():
+    X = torch.randn(5, 10)
+    y = torch.randn(5, 2)
+
+    model = nn.Sequential(nn.Linear(10, 2))
+
+    wrapper: StructureWrapper = watch(model, log_freq=1, backend='none')
+    yhat = model(X)
+    with torch.no_grad():
+        model.eval()
+        yhat2 = model(X)
+        model.train()
+    (y - yhat).sum().backward()
+
+    for node in wrapper.structure.inner_graph.nodes:
+        if not isinstance(node, ModuleInvocationStructure):
+            continue
+
+        metadata = node.module_metadata()
+
+        assert len(metadata.invocation_hists) == 1
+        assert len(metadata.invocation_grad_hists) == 1
+
+        hists: ModuleInvocationHistograms = metadata.invocation_hists[0]
+        grad_hists: ModuleInvocationHistograms = metadata.invocation_grad_hists[0]
+
+        assert len(hists.input_hists) == 1
+        assert len(hists.output_hists) == 1
+
+        assert len(grad_hists.input_hists) == 1
+        assert len(grad_hists.output_hists) == 1
+
+        assert len(metadata.shared_hists.param_hists['weight'].history_bins) == 1
+
 
 def _basic_mlp_structure() -> tuple[nn.Module, ModuleInvocationStructure]:
     X = torch.randn(5, 10)
