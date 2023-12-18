@@ -194,7 +194,7 @@ class TestModule(nn.Module):
 
 ### Unsupported
 
-1. Having multiple `.backward()` calls in one training step is not supported.
+1. Having multiple `.backward()` calls in one training step is not supported. Invoking the `.forward()` method multiple times before backpropping a loss is also not fully supported and the gradient histograms may be incorrect or missing (fix is in the works). The only currently supported use case is having exactly one `forward` invocation followed by one `backward` invocation.
 2. **Recursive operations are not supported,** and **anything which dynamically changes the module-level control flow over training is not supported**. For instance, something like this isn't permissible:
 ```python
 if x > 0:
@@ -267,7 +267,7 @@ This is a [known bug](https://github.com/wandb/wandb/issues/2825) in wandb when 
 A partial list of some related tools. The first section concerns visualizing model structure, and the second section concerns visualizing parameters/activations during training. TorchExplorer combines these in an interactive way. TorchExplorer also stands out by only showing nested submodules if you click into a submodule, keeping the interface a little cleaner in my opinion.
 
 _Model structure visualization._
-1. [Netron](https://github.com/lutzroeder/netron)
+1. [netron](https://github.com/lutzroeder/netron)
 2. [torchviz](https://github.com/szagoruyko/pytorchviz)
 3. [hiddenlayer](https://github.com/waleedka/hiddenlayer)
 4. [torchview](https://github.com/mert-kurttutan/torchview)
