@@ -97,7 +97,7 @@ def test_repeat_submodule_multiforward():
     wandb.init(**wandb_init_params, name='repeat_submodule_multiforward_test')
     watch(
         model, log_freq=1, ignore_io_grad_classes=[], backend='wandb',
-        # delay_log_multi_backward=True
+        delay_log_multi_backward=True
     )
 
     optimizer = optim.SGD(model.parameters(), lr=1e-2)

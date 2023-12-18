@@ -52,6 +52,7 @@ def watch(
         sample_n: Optional[int] = 100,
         reject_outlier_proportion: float = 0.1,
         time_log: tuple[str, Callable] = ('step', lambda module, step: step),
+        delay_log_multi_backward: bool = False,
         backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
         standalone_dir: str = './torchexplorer_standalone',
         standalone_port: int = 5000,
@@ -80,6 +81,10 @@ def watch(
             to log. The time_unit string is just the axis label on the histogram graph.
             If "module" is a pytorch lightning modules, torchexplorer.LIGHTNING_EPOCHS
             should work to change the time axis to epochs.
+        delay_log_multi_backward (bool): Whether to delay logging until after all
+            backward hooks have been called. This is useful if the module argument is
+            invoked multiple times in one step before "backward()" is called on the
+            loss. 
         backend (Literal['wandb', 'standalone', 'none']): The backend to log to. If
             'wandb', there must be an active wandb run. Otherwise, a standalone web app
             will be created in the standalone_dir.
@@ -125,26 +130,29 @@ def watch(
 
     layout_cache = None
     backward_last_called = False
-    def post_forward_hook(module, __, ___):
+    def handle_step(module):
         nonlocal step_counter, backend_handler, wrapper, layout_cache
-        nonlocal backward_last_called
+        if should_log_callable():
+            time = time_fn(module, step_counter)
+            hook.push_histogram_histories(
+                module,
+                hist_params,
+                time=time,
+                log_params='params' in log,
+                log_params_grad='params_grad' in log
+            )
+            renderable, layout_cache = layout.layout(wrapper.structure, layout_cache)
+            backend_handler.update(renderable)
+
+        step_counter += 1
+
+    def post_forward_hook(module, __, ___):
+        nonlocal wrapper, backward_last_called
         if module.training and (wrapper.structure is None):
             wrapper.structure = structure.extract_structure(module)
         
-        if backward_last_called:
-            if should_log_callable():
-                time = time_fn(module, step_counter)
-                hook.push_histogram_histories(
-                    module,
-                    hist_params,
-                    time=time,
-                    log_params='params' in log,
-                    log_params_grad='params_grad' in log
-                )
-                renderable, layout_cache = layout.layout(wrapper.structure, layout_cache)
-                backend_handler.update(renderable)
-
-            step_counter += 1
+        if delay_log_multi_backward and backward_last_called:
+            handle_step(module)
             backward_last_called = False
 
 
@@ -152,10 +160,13 @@ def watch(
         # This hook is called after we've backprop'd and called all the other hooks
         nonlocal backward_last_called
 
-        # We need this fancy scheme in case our module is invoked twice and both 
-        # outputs go into the loss. Then we get two backward_hook invocations on one
-        # backwards pass, but we only want to push histograms once for this.
-        backward_last_called = True
+        if delay_log_multi_backward:
+            # We need this fancy scheme in case our module is invoked twice and both 
+            # outputs go into the loss. Then we get two backward_hook invocations on one
+            # backwards pass, but we only want to push histograms once for this.
+            backward_last_called = True
+        else:
+            handle_step(module)
 
     module.register_forward_hook(post_forward_hook)
     module.register_full_backward_hook(post_backward_hook)

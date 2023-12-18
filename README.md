@@ -130,6 +130,7 @@ def watch(
     sample_n: Optional[int] = 100,
     reject_outlier_proportion: float = 0.1,
     time_log: tuple[str, Callable] = ('step', lambda module, step: step),
+    delay_log_multi_backward: bool = False,
     backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
     standalone_dir: str = './torchexplorer_standalone',
     standalone_port: int = 5000,
@@ -158,6 +159,10 @@ Args:
         to log. The time_unit string is just the axis label on the histogram graph.
         If "module" is a pytorch lightning modules, torchexplorer.LIGHTNING_EPOCHS
         should work to change the time axis to epochs.
+    delay_log_multi_backward (bool): Whether to delay logging until after all
+        backward hooks have been called. This is useful if the module argument is
+        invoked multiple times in one step before "backward()" is called on the
+        loss. 
     backend (Literal['wandb', 'standalone', 'none']): The backend to log to. If
         'wandb', there must be an active wandb run. Otherwise, a standalone web app
         will be created in the standalone_dir.
@@ -191,10 +196,19 @@ class TestModule(nn.Module):
 ```
 2. Nondifferentiable operations which break the autograd graph are permissible and should not cause a crash. However, the resulting module-level graph will be correspondingly disconnected.
 3. Multiple inputs and outputs will display correctly (i.e., "Input 0", "Input 1", ...)
+4. Invoking `.forward()` multiple times in a single step before backpropping is supported, but you must pass `delay_log_multibackward=True` (disabled by default). So the following pseudocode should work within a training loop:
+```python
+torchexplorer.watch(module, delay_log_multibackward=True)
+y_hat1 = module(X1)
+y_hat2 = module(X2)
+loss = (yhat1 - y1).abs().sum() + (yhat2 - y2).abs().sum()
+loss.backward()
+```
+You'll see the superposition of the input/output histograms and input/output gradient histograms across the calls in the interface.
 
 ### Unsupported
 
-1. Having multiple `.backward()` calls in one training step is not supported. Invoking the `.forward()` method multiple times before backpropping a loss is also not fully supported and the gradient histograms may be incorrect or missing (fix is in the works). The only currently supported use case is having exactly one `forward` invocation followed by one `backward` invocation.
+1. All logging is disabled while the model is in `eval` mode, and any `forward` calls in this state are ignored completely.
 2. **Recursive operations are not supported,** and **anything which dynamically changes the module-level control flow over training is not supported**. For instance, something like this isn't permissible:
 ```python
 if x > 0:
