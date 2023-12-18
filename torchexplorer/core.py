@@ -30,6 +30,7 @@ class ModuleInvocationHistograms:
     output_hists: list[IncrementalHistogram] = field(default_factory=lambda: [])
 
 
+list_field = partial(field, default_factory=lambda: [])
 dict_field = partial(field, default_factory=lambda: {})
 
 @dataclass
@@ -44,6 +45,10 @@ class ExplorerMetadata:
     """Metadata associated to a module, saved as 'module.torchexplorer_metadata'."""
 
     has_tracking_hooks = False
+    has_size_record_hooks = False
+    has_io_histogram_hooks = False
+    has_io_grad_histogram_hooks = False
+    registered_hooks: list[Callable] = list_field()
 
     # Cleared before every forwards pass
     input_gradfns: dict[InvocationId, tuple[Optional[GradFn], ...]] = dict_field()

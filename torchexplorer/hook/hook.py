@@ -84,7 +84,6 @@ def hook(
         module.torchexplorer_metadata.input_gradfns.clear()
         module.torchexplorer_metadata.output_gradfns.clear()
         module.torchexplorer_metadata.forward_invocation_counter = 0
-        # module.torchexplorer_metadata.backward_invocation_counter = 0
 
     module.apply(_add_metadata)
 
@@ -162,7 +161,7 @@ def _add_tracking_hooks(module: Module, should_log_callable: Callable):
 
         return outputs_tuple[0] if single_output else outputs_tuple
 
-    def add_hooks(module):
+    def add_hooks(module: Module):
         if not module.torchexplorer_metadata.has_tracking_hooks:
             module.register_forward_pre_hook(pre_hook)
             module.register_forward_hook(post_hook)
@@ -203,9 +202,11 @@ def _add_size_record_hooks(module: Module, should_log_callable: Callable):
         ]:
             record_sizes(tensors, sizes.setdefault(invocation_id, []))
 
-    def hook_module(m: Module):
-        m.register_forward_hook(post_hook)
-    module.apply(hook_module)
+    def add_hook(module: Module):
+        if not module.torchexplorer_metadata.has_size_record_hooks:
+            module.register_forward_hook(post_hook)
+            module.torchexplorer_metadata.has_size_record_hooks = True
+    module.apply(add_hook)
 
 def _add_io_histogram_hooks(
         module: Module, hist_params: HistogramParams, should_log_callable: Callable
@@ -230,9 +231,12 @@ def _add_io_histogram_hooks(
                 if tensor is not None:
                     hists[i].update(tensor.detach())
 
-    def hook_module(m: Module):
-        m.register_forward_hook(post_hook)
-    module.apply(hook_module)
+    def add_hook(module: Module):
+        if not module.torchexplorer_metadata.has_io_histogram_hooks:
+            module.register_forward_hook(post_hook)
+            module.torchexplorer_metadata.has_io_histogram_hooks = True
+    
+    module.apply(add_hook)
 
 def _add_io_grad_histogram_hooks(
         module: Module,
@@ -274,8 +278,12 @@ def _add_io_grad_histogram_hooks(
                 norms = torch.norm(tensor.float(), dim=1)
                 hists[i].update(norms.detach())
 
-    if type(module) not in ignore_classes:
+    if (
+        type(module) not in ignore_classes and
+        not module.torchexplorer_metadata.has_io_grad_histogram_hooks
+    ):
         module.register_full_backward_hook(backward_hook)
+        module.torchexplorer_metadata.has_io_grad_histogram_hooks = True
 
         for child in module.children():
             _add_io_grad_histogram_hooks(
