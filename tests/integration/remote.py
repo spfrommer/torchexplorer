@@ -133,7 +133,7 @@ def test_embedding():
 
     model = EmbeddingModule()
 
-    wandb.init(**wandb_init_params, name='repeat_submodule_test')
+    wandb.init(**wandb_init_params, name='embedding_test')
     watch(model, log_freq=1, ignore_io_grad_classes=[], backend='wandb')
     infra.run_trial(model, X, y, steps=5)
     wandb.finish()
