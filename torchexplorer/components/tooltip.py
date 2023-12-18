@@ -4,6 +4,8 @@ from torch.nn import Module, ModuleList, ModuleDict
 
 from torchexplorer.core import SizeTracker, InvocationId
 
+dash = '–'
+
 class Tooltip:
     """The tooltip that pops up next to a Module."""
 
@@ -18,7 +20,7 @@ class Tooltip:
         ) -> 'Tooltip':
 
         name = tracker.type.split('.')[-1]
-        keys, vals = ['size'], [str(tracker.size).replace('None', '—')]
+        keys, vals = ['size'], [str(tracker.size).replace('None', dash)]
         return Tooltip(name, keys, vals)
     
     @classmethod
@@ -73,12 +75,12 @@ class Tooltip:
         one_input = len(metadata.input_sizes[invocation_id]) == 1
         for i, input_tracker in enumerate(metadata.input_sizes[invocation_id]):
             keys.append('in_size' if one_input else f'in{i}_size')
-            vals.append(str(input_tracker.size).replace('None', '—'))
+            vals.append(str(input_tracker.size).replace('None', dash))
         
         one_output = len(metadata.output_sizes[invocation_id]) == 1
         for i, output_tracker in enumerate(metadata.output_sizes[invocation_id]):
             keys.append('out_size' if one_output else f'out{i}_size')
-            vals.append(str(output_tracker.size).replace('None', '—'))
+            vals.append(str(output_tracker.size).replace('None', dash))
 
         return keys, vals
     
@@ -91,7 +93,7 @@ class Tooltip:
             for pair in pairs:
                 if pair == '':
                     continue
-                k, v = pair.split('=') if ('=' in pair) else ('—', pair)
+                k, v = pair.split('=') if ('=' in pair) else (dash, pair)
                 keys.append(k.strip())
                 vals.append(v.strip())
         except Exception:

@@ -145,7 +145,6 @@ def _serialize_node(layout: NodeLayout) -> dict:
     output_grad_hists = layout_resolve('invocation_grad_hists', 'output_hists')
     param_hists = layout_resolve('shared_hists', 'param_hists')
     param_grad_hists = layout_resolve('shared_hists', 'param_grad_hists')
-    
 
     input_hists_str = interleave_and_serialize_list(
         input_hists, input_grad_hists, 'input', 'raw val', 'grad norm'

@@ -306,7 +306,7 @@ def _truncate_string_width(st, font_size, truncate_width, truncate):
         elif s in '*^zcsJkvxy': size += 85
         elif s in 'aebdhnopqug#$L+<>=?_~FZT' + string.digits: size += 95
         elif s in 'BSPEAKVXY&UwNRCHD': size += 112
-        elif s in 'QGOMm%W@': size += 135
+        elif s in 'QGOMm%W@–': size += 135
         else: size += 50
 
         if size >= truncate_width and truncate:
