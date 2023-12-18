@@ -104,13 +104,13 @@ def _layout_io_node(
         )[io_index]
 
     layout.invocation_hists = ModuleInvocationHistograms(
-        input_hists=[hist] if has_io_hists and is_input else [],
-        output_hists=[hist] if has_io_hists and (not is_input) else []
+        input_hists=[hist] if has_io_hists else [],
+        output_hists=[hist] if has_io_hists else []
     )
 
     layout.invocation_grad_hists = ModuleInvocationHistograms(
-        input_hists=[grad_hist] if has_grad_hists and is_input else [],
-        output_hists=[grad_hist] if has_grad_hists and (not is_input) else []
+        input_hists=[grad_hist] if has_grad_hists else [],
+        output_hists=[grad_hist] if has_grad_hists else []
     )
 
 def _layout_moduleinvocation_node(

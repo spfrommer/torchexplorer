@@ -32,16 +32,17 @@ class TestModule(nn.Module):
     def forward(self, x):
         x = self.fc1(x)
         skip = x
-        x = self.submodule(x)
+        x = api.attach(x, self, 'x_presubmodule')
+        # x = self.submodule(x)
         x = self.fc2(x.float() + skip)
         # x = self.fc2(x.float())
         return x
 
 def main():
-    # model = TestModule()
-    # time_log = ('epoch', lambda module, step: step // 2)
-    # structure_wrapper = api.watch(model, log_freq=1, backend='none', time_log=time_log)
-    # X, y = torch.randn(5, 10), torch.randn(5, 10)
+    model = TestModule()
+    time_log = ('epoch', lambda module, step: step // 2)
+    structure_wrapper = api.watch(model, log_freq=1, backend='none', time_log=time_log)
+    X, y = torch.randn(5, 10), torch.randn(5, 10)
 
     # import torchvision
     # model = torchvision.models.resnet18()
@@ -53,13 +54,13 @@ def main():
     # X, y = torch.randn(5, 3, 32, 32), torch.randn(5, 1000)
 
 
-    encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
-    model = nn.TransformerEncoder(encoder_layer, num_layers=6)
-    structure_wrapper = api.watch(
-        model, log_freq=1, backend='none', disable_inplace=True
-    )
-    X = torch.rand(10, 32, 512)
-    y = torch.randn(10, 32, 512)
+    # encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
+    # model = nn.TransformerEncoder(encoder_layer, num_layers=6)
+    # structure_wrapper = api.watch(
+    #     model, log_freq=1, backend='none', disable_inplace=True
+    # )
+    # X = torch.rand(10, 32, 512)
+    # y = torch.randn(10, 32, 512)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-2)
     loss_fn = torch.nn.MSELoss()

@@ -186,15 +186,15 @@ def watch(
 def attach(tensor: Tensor, parent: Module, name: str) -> Tensor:
     if not hasattr(parent, 'torchexplorer_attach_modules'):
         parent.torchexplorer_attach_modules = nn.ModuleDict()
-        parent.torchexplorer_attach_modules.torchexplorer_metadata = ExplorerMetadata()
+        parent.torchexplorer_attach_modules.torchexplorer_metadata = ExplorerMetadata() # type: ignore
     
     metadata = parent.torchexplorer_metadata
     attach_modules = parent.torchexplorer_attach_modules
 
     if name not in attach_modules:
         dummy = core.DummyAttachModule()
-        dummy.torchexplorer_metadata = ExplorerMetadata()
-        dummy.attach_name = name
+        dummy.torchexplorer_metadata = ExplorerMetadata() # type: ignore
+        dummy.attach_name = name # type: ignore
         for hook_registration_function in metadata.hook_registration_functions:
             hook_registration_function(dummy)
         attach_modules[name] = dummy
