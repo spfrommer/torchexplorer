@@ -153,20 +153,25 @@ def watch(
         
         if delay_log_multi_backward and backward_last_called:
             handle_step(module)
-            backward_last_called = False
+        backward_last_called = False
 
 
     def post_backward_hook(_, __, ___):
         # This hook is called after we've backprop'd and called all the other hooks
+        
+        # We need this fancy scheme in case our module is invoked twice and both 
+        # outputs go into the loss. Then we get two backward_hook invocations on one
+        # backwards pass, but we only want to push histograms once for this.
         nonlocal backward_last_called
 
-        if delay_log_multi_backward:
-            # We need this fancy scheme in case our module is invoked twice and both 
-            # outputs go into the loss. Then we get two backward_hook invocations on one
-            # backwards pass, but we only want to push histograms once for this.
-            backward_last_called = True
-        else:
+        if not delay_log_multi_backward:
+            if backward_last_called:
+                raise RuntimeError(
+                    'Got two backward() calls in one step! This is only supported if '
+                    'delay_log_multi_backward=True is passed to watch().'
+                )
             handle_step(module)
+        backward_last_called = True
 
     module.register_forward_hook(post_forward_hook)
     module.register_full_backward_hook(post_backward_hook)
