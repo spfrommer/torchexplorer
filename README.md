@@ -63,7 +63,7 @@ Installing requires one external `graphviz` dependency, which should be availabl
 sudo apt-get install libgraphviz-dev graphviz
 pip install torchexplorer
 ```
-For Mac, `brew install graphviz` should suffice.
+For Mac, `brew install graphviz` should suffice. If the `pygraphviz` wheel build fails because it can't find `Python.h`, you must install the python header files as described [here](https://stackoverflow.com/a/22077790/4864247).
 
 ## User interface
 
