@@ -48,7 +48,8 @@ class ExplorerMetadata:
     has_size_record_hooks = False
     has_io_histogram_hooks = False
     has_io_grad_histogram_hooks = False
-    registered_hooks: list[Callable] = list_field()
+    # Should take in a module and apply the relevant hook
+    hook_registration_functions: list[Callable] = list_field()
 
     # Cleared before every forwards pass
     input_gradfns: dict[InvocationId, tuple[Optional[GradFn], ...]] = dict_field()
@@ -142,3 +143,11 @@ class ModuleInvocationStructure():
     # NOTE: Overriding __str__ breaks the graphviz rendering...
     def str_impl(self) -> str:
         return f'{self.module.__class__.__name__}, Invocation {self.invocation_id}'
+    
+
+class DummyAttachModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x

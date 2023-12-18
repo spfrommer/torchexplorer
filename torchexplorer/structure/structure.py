@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import sys
 from loguru import logger
 
-from torchexplorer.components.tooltip import Tooltip
 from torchexplorer import utils
 
 

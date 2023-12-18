@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from torch import nn
+from torch import Tensor, nn
+from torch.nn import Module
 import wandb
 
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal, Optional, Union
 
 from torchexplorer import core
+from torchexplorer.core import ExplorerMetadata
 from torchexplorer.api.backend import (
     Backend, DummyBackend, StandaloneBackend, WandbBackend
 )
@@ -43,7 +45,7 @@ def setup(ulimit=50000):
 watch_counter = 0
 
 def watch(
-        module: nn.Module,
+        module: Module,
         log: list[str] = ['io', 'io_grad', 'params', 'params_grad'],
         log_freq: int = 500,
         ignore_io_grad_classes: list[type] = [],
@@ -181,8 +183,27 @@ def watch(
     return wrapper
 
 
-def _disable_inplace(module: nn.Module):
-    def disable(m: nn.Module):
+def attach(tensor: Tensor, parent: Module, name: str) -> Tensor:
+    if not hasattr(parent, 'torchexplorer_attach_modules'):
+        parent.torchexplorer_attach_modules = nn.ModuleDict()
+        parent.torchexplorer_attach_modules.torchexplorer_metadata = ExplorerMetadata()
+    
+    metadata = parent.torchexplorer_metadata
+    attach_modules = parent.torchexplorer_attach_modules
+
+    if name not in attach_modules:
+        dummy = core.DummyAttachModule()
+        dummy.torchexplorer_metadata = ExplorerMetadata()
+        dummy.attach_name = name
+        for hook_registration_function in metadata.hook_registration_functions:
+            hook_registration_function(dummy)
+        attach_modules[name] = dummy
+
+    return attach_modules[name](tensor)
+
+
+def _disable_inplace(module: Module):
+    def disable(m: Module):
         if hasattr(m, 'inplace'):
             m.inplace = False # type: ignore
 

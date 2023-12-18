@@ -15,10 +15,7 @@ class Tooltip:
         self.vals = vals
     
     @classmethod
-    def create_io(
-            cls, tracker: SizeTracker, is_input: bool
-        ) -> 'Tooltip':
-
+    def create_io(cls, tracker: SizeTracker) -> 'Tooltip':
         name = tracker.type.split('.')[-1]
         keys, vals = ['size'], [str(tracker.size).replace('None', dash)]
         return Tooltip(name, keys, vals)
@@ -30,7 +27,6 @@ class Tooltip:
 
         name_in_parent = cls._get_name_in_parent(module, parent_module)
 
-
         io_shape_keys, io_shape_vals = cls._get_io_shape_keyvals(module, invocation_id)
         extra_repr_keys, extra_repr_vals = cls._get_extra_repr_keyvals(module)
 
@@ -40,6 +36,10 @@ class Tooltip:
         assert len(keys) == len(vals)
 
         return Tooltip(name_in_parent, keys, vals)
+    
+    @classmethod
+    def create_attach(cls, module: Module) -> 'Tooltip':
+        return cls.create_io(module.torchexplorer_metadata.input_sizes[0][0])
     
     @classmethod
     def _get_name_in_parent(cls, module: Module, parent_module: Module) -> str:

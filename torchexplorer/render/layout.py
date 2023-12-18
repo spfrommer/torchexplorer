@@ -1,6 +1,7 @@
 from __future__ import annotations
 import copy
 
+import html
 import json
 import string
 from typing import Optional, Union
@@ -9,6 +10,7 @@ import networkx as nx
 from subprocess import Popen, PIPE
 
 from torchexplorer import utils
+from torchexplorer import core
 from torchexplorer.components.tooltip import Tooltip
 
 from torchexplorer.core import ModuleInvocationHistograms, ModuleInvocationStructure
@@ -50,7 +52,8 @@ def _layout_into(
         draw_xs, draw_ys = draw_points[:, 0], draw_points[:, 1]
 
         inner_layout = NodeLayout()
-        inner_layout.display_name = object['label']
+        # Replace the attach module label
+        inner_layout.display_name = object['label'].replace('<>', ' ᴬ')
         inner_layout.bottom_left_corner = [draw_xs.min(), draw_ys.min()]
         inner_layout.top_right_corner = [draw_xs.max(), draw_ys.max()]
 
@@ -86,9 +89,7 @@ def _layout_io_node(
         parent_metadata.input_sizes if is_input else parent_metadata.output_sizes
     )[parent_invocation_id][io_index]
 
-    _add_tooltip(layout, Tooltip.create_io(
-        io_tensor_shape, is_input
-    ))
+    _add_tooltip(layout, Tooltip.create_io(io_tensor_shape))
 
     has_io_hists = parent_invocation_id in parent_metadata.invocation_hists
     if has_io_hists:
@@ -120,9 +121,12 @@ def _layout_moduleinvocation_node(
     object_struct = parent_structure.get_inner_structure_from_id(structure_id)
     assert object_struct is not None
 
-    _add_tooltip(layout, Tooltip.create_moduleinvocation(
-        object_struct.module, parent_structure.module, object_struct.invocation_id
-    ))
+    if isinstance(object_struct.module, core.DummyAttachModule):
+        _add_tooltip(layout, Tooltip.create_attach(object_struct.module))
+    else:
+        _add_tooltip(layout, Tooltip.create_moduleinvocation(
+            object_struct.module, parent_structure.module, object_struct.invocation_id
+        ))
 
     metadata = object_struct.module_metadata()
 
@@ -268,9 +272,14 @@ def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> d
 
 def _label_nodes(structure: ModuleInvocationStructure) -> None:
     for node in structure.inner_graph.nodes:
-        structure.inner_graph.nodes[node]['label'] = (
-            node if is_io_node(node) else node.module.__class__.__name__
-        )
+        if is_io_node(node):
+            label = node
+        elif isinstance(node.module, core.DummyAttachModule):
+            label = node.module.attach_name + '<>' # Placeholder for later
+        else:
+            label = node.module.__class__.__name__
+
+        structure.inner_graph.nodes[node]['label'] = label
 
     multiple_inputs = structure.inner_graph.has_node('Input 1')
     multiple_outputs = structure.inner_graph.has_node('Output 1')

@@ -117,7 +117,7 @@ def _add_tracking_hooks(module: Module, should_log_callable: Callable):
     @return_if_not_should_log(should_log_callable)
     def pre_hook(module: Module, inputs: tuple[OTensor, ...]):
         # In case an input is passed directly to a submodule
-        # Honestly nto really sure why it's necessary but it is
+        # Honestly not really sure why it's necessary but it is
         inputs = _add_dummy(inputs)
 
         metadata: ExplorerMetadata = module.torchexplorer_metadata
@@ -161,18 +161,21 @@ def _add_tracking_hooks(module: Module, should_log_callable: Callable):
 
         return outputs_tuple[0] if single_output else outputs_tuple
 
-    def add_hooks(module: Module):
+    def add_hooks(module: Module, append_hook_function=True):
         if not module.torchexplorer_metadata.has_tracking_hooks:
             module.register_forward_pre_hook(pre_hook)
             module.register_forward_hook(post_hook)
             module.torchexplorer_metadata.has_tracking_hooks = True
+
+            if append_hook_function:
+                module.torchexplorer_metadata.hook_registration_functions.append(
+                    lambda m: add_hooks(m, append_hook_function=False)
+                )
     
     module.apply(add_hooks)
 
 def _add_size_record_hooks(module: Module, should_log_callable: Callable):
-    def record_sizes(
-            tensors: tuple[OTensor, ...], tensor_trackers: list[SizeTracker]
-        ) -> None:
+    def record_sizes(tensors: tuple[OTensor, ...], tensor_trackers: list[SizeTracker]):
         for i, tensor in utils.enum_not_none(tensors):
             shape = list(tensor.shape)
 
@@ -202,10 +205,15 @@ def _add_size_record_hooks(module: Module, should_log_callable: Callable):
         ]:
             record_sizes(tensors, sizes.setdefault(invocation_id, []))
 
-    def add_hook(module: Module):
+    def add_hook(module: Module, append_hook_function=True):
         if not module.torchexplorer_metadata.has_size_record_hooks:
             module.register_forward_hook(post_hook)
             module.torchexplorer_metadata.has_size_record_hooks = True
+
+            if append_hook_function:
+                module.torchexplorer_metadata.hook_registration_functions.append(
+                    lambda m: add_hook(m, append_hook_function=False)
+                )
     module.apply(add_hook)
 
 def _add_io_histogram_hooks(
@@ -231,10 +239,15 @@ def _add_io_histogram_hooks(
                 if tensor is not None:
                     hists[i].update(tensor.detach())
 
-    def add_hook(module: Module):
+    def add_hook(module: Module, append_hook_function=True):
         if not module.torchexplorer_metadata.has_io_histogram_hooks:
             module.register_forward_hook(post_hook)
             module.torchexplorer_metadata.has_io_histogram_hooks = True
+
+            if append_hook_function:
+                module.torchexplorer_metadata.hook_registration_functions.append(
+                    lambda m: add_hook(m, append_hook_function=False)
+                )
     
     module.apply(add_hook)
 
@@ -278,12 +291,18 @@ def _add_io_grad_histogram_hooks(
                 norms = torch.norm(tensor.float(), dim=1)
                 hists[i].update(norms.detach())
 
-    if (
-        type(module) not in ignore_classes and
-        not module.torchexplorer_metadata.has_io_grad_histogram_hooks
-    ):
-        module.register_full_backward_hook(backward_hook)
-        module.torchexplorer_metadata.has_io_grad_histogram_hooks = True
+    def add_hook(module, append_hook_function=True):
+        if not module.torchexplorer_metadata.has_io_grad_histogram_hooks:
+            module.register_full_backward_hook(backward_hook)
+            module.torchexplorer_metadata.has_io_grad_histogram_hooks = True
+
+            if append_hook_function:
+                module.torchexplorer_metadata.hook_registration_functions.append(
+                    lambda m: add_hook(m, append_hook_function=False)
+                )
+
+    if type(module) not in ignore_classes:
+        add_hook(module)
 
         for child in module.children():
             _add_io_grad_histogram_hooks(

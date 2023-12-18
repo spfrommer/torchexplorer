@@ -10,7 +10,7 @@ import torch
 from torch import nn
 from torch import optim
 
-from torchexplorer import watch
+from torchexplorer import watch, attach
 
 import infra
 from vqvae import VQVAEModel
@@ -206,6 +206,9 @@ class MultiInputMultiOutputModule(nn.Module):
 
     def forward(self, x):
         y1 = self.fc1(x)
+        # TODO: The commented out approach gives correct answers...
+        # y_times = y1 * 5
+        # y2, y3 = self.submodule(y1, y_times)
         y2, y3 = self.submodule(y1, y1 * 5)
         y4 = self.fc2(y2) + self.fc2(y3)
         return y4
@@ -218,6 +221,36 @@ def test_mimo():
     model = MultiInputMultiOutputModule()
 
     wandb.init(**wandb_init_params, name='multi_io_test')
+    watch(model, log_freq=1, backend='wandb')
+    infra.run_trial(model, X, y, steps=5)
+    wandb.finish()
+
+
+class AttachModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(10, 10)
+        self.submodule = MultiInputMultiOutputSubmoduleLongName()
+        self.fc2 = nn.Linear(10, 10)
+
+    def forward(self, x):
+        y1 = self.fc1(x)
+        y1 = attach(y1, self, 'y1')
+        y2, y3 = self.submodule(y1, y1 * 5)
+        y2 = attach(y2, self, 'y2')
+        y3 = attach(y3, self, 'y3')
+        y4 = self.fc2(y2) + self.fc2(y3)
+        y4 = attach(y4, self, 'y4')
+        return y4
+
+
+def test_attach():
+    X = torch.randn(5, 10)
+    y = torch.randn(5, 10)
+
+    model = AttachModule()
+
+    wandb.init(**wandb_init_params, name='attach_test')
     watch(model, log_freq=1, backend='wandb')
     infra.run_trial(model, X, y, steps=5)
     wandb.finish()
