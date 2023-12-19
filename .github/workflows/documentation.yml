@@ -1,0 +1,39 @@
+name: documentation
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install Python dependencies
+      run: |
+        pip install 'sphinx furo'
+    
+    - name: Sphinx build
+      run: |
+        sphinx-build -M html docs/source/ docs/build/
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      with:
+        publish_branch: gh-pages
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: docs/build/
+        force_orphan: true
