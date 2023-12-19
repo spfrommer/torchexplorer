@@ -33,6 +33,8 @@ setup(
             'pyperclip',
             'mypy',
             'twine',
+            'sphinx',
+            'furo'
         ]
     }
 )

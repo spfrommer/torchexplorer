@@ -27,9 +27,9 @@ LIGHTNING_EPOCHS = ('epoch', lambda module, step: module.current_epoch)
 
 
 def setup(ulimit=50000):
-    """Bump the open file limit. Must be called before wandb.init().
+    """Bump the open file limit. Must be called before `wandb.init()`.
     
-    This is a necessary workaround for long wandb training runs (see README common
+    This is a necessary workaround for long wandb training runs (see `README.md` common
     errors #4).
     
     Args:
@@ -40,7 +40,6 @@ def setup(ulimit=50000):
 
     import resource
     resource.setrlimit(resource.RLIMIT_NOFILE, (ulimit, ulimit))
-
 
 watch_counter = 0
 
@@ -63,38 +62,42 @@ def watch(
     """Watch a module and log its structure and histograms to a backend.
 
     Args:
-        module (nn.Module): The module to watch.
+        module (Module): The module to watch.
         log (list[str]): What to log. Can be a subset of
             ['io', 'io_grad', 'params', 'params_grad'].
         log_freq (int): How many backwards passes to wait between logging.
         ignore_io_grad_classes (list[type]): A list of classes to ignore when logging
             io_grad. This is useful for ignoring classes which do inplace operations,
             which will throw an error.
-        disable_inplace (bool): disables the 'inplace' attribute for all activations in
+        disable_inplace (bool): disables the `inplace` attribute for all activations in
             the module.
         bins (int): The number of bins to use for histograms.
         sample_n (Optional[int]): The number of tensor elements to randomly sample for
-            histograms. Passing "None" will sample all elements.
+            histograms. Passing `None` will sample all elements.
         reject_outlier_proportion (float): The proportion of outliners to reject when
-            computing histograms, based on distance to the median. 0.0 means reject
-            nothing, 1.0 rejects everything. Helps chart stay in a reasonable range.
+            computing histograms, based on distance to the median. `0.0` means reject
+            nothing, `1.0` rejects everything. Helps chart stay in a reasonable range.
         time_log: ([tuple[str, Callable]): A tuple of (time_unit, Callable) to use for
             logging. The allable should take in the module and step and return a value
             to log. The time_unit string is just the axis label on the histogram graph.
-            If "module" is a pytorch lightning modules, torchexplorer.LIGHTNING_EPOCHS
+            If `module` is a pytorch lightning modules, `torchexplorer.LIGHTNING_EPOCHS`
             should work to change the time axis to epochs.
         delay_log_multi_backward (bool): Whether to delay logging until after all
             backward hooks have been called. This is useful if the module argument is
-            invoked multiple times in one step before "backward()" is called on the
+            invoked multiple times in one step before `backward()` is called on the
             loss. 
         backend (Literal['wandb', 'standalone', 'none']): The backend to log to. If
             'wandb', there must be an active wandb run. Otherwise, a standalone web app
-            will be created in the standalone_dir.
+            will be created in the `standalone_dir`.
         standalone_dir (str): The directory to create the standalone web app in. Only
             matters if the 'standalone' backend is selected.
         standalone_port (int): The port to run the standalone server on. Only matters if
             the 'standalone' backend is selected.
         verbose (bool): Whether to print out standalone server start message.
+    
+    Returns:
+        StructureWrapper: A wrapper around the module's structure. Access the parsed
+            structure with `wrapper.structure`.
     """
 
     global watch_counter
@@ -184,6 +187,32 @@ def watch(
 
 
 def attach(tensor: Tensor, parent: Module, name: str) -> Tensor:
+    """Monitor a particular tensor within a "forward" call.
+
+    Example:
+        Intended usage::
+        
+            def forward(self, x):
+                y = x + 3
+                y = torch.attach(y, self, name='y_monitor')
+                z = y * 5
+                return z
+
+    Example:
+        Note that the return value must be assigned in order for this to have any
+        effect. The following will do nothing by itself::
+
+            torch.attach(y, self, name='y_monitor')
+
+    Args:
+        tensor (Tensor): The tensor to watch.
+        parent (Module): The Module whose `forward` method we are currently in. Usually
+            will be `self`
+        name (str): The name of the resulting node in the interface.
+
+    Returns:
+        Tensor: the same tensor passed to `attach`. Must be assigned.
+    """
     if not hasattr(parent, 'torchexplorer_attach_modules'):
         parent.torchexplorer_attach_modules = nn.ModuleDict()
         parent.torchexplorer_attach_modules.torchexplorer_metadata = ExplorerMetadata() # type: ignore

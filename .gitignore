@@ -6,6 +6,7 @@ pretrain/
 private/
 setup.sh
 MANIFEST.in
+docs/build/
 
 torchexplorer_standalone/
 
