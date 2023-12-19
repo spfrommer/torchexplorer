@@ -90,6 +90,10 @@ model(dummy_X).sum().backward()
 # Your model will be available at http://localhost:5000
 ```
 
+<p align="center">
+  <img src="./res/attach_demo.png" width="850"/>
+</p>
+
 ## User interface
 
 <p align="center">
