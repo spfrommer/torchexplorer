@@ -23,6 +23,7 @@ jobs:
     
     - name: Install Python dependencies
       run: |
+        pip install .
         pip install sphinx furo
     
     - name: Sphinx build
