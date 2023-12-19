@@ -45,9 +45,9 @@ pip install torchexplorer
 ```
 For Mac, `brew install graphviz` should suffice. If the `pygraphviz` wheel build fails because it can't find `Python.h`, you must install the python header files as described [here](https://stackoverflow.com/a/22077790/4864247).
 
-### Quick examples
+### Usage
 
-For more usage examples, see `/tests` and `/examples`.
+For more examples, see `/tests` and `/examples`.
 
 _Examine model structure._ TorchExplorer's interactive view of the model structure is also useful in its own right (without the histogram bells-and-whistles). Here's a self-contained example for how to get an interactive view of a ResNet18. Mousing over a particular node reveals input/output tensor shapes and Module parameters. Get a feel for what this looks like [with an interactive demo](https://api.wandb.ai/links/spfrom_team/8qqsxx9f).
 ```python
@@ -93,6 +93,16 @@ model(dummy_X).sum().backward()
 <p align="center">
   <img src="./res/attach_demo.png" width="850"/>
 </p>
+
+_More debugging use cases._ TorchExplorer is meant to be a general-purpose tool to see what's happening in your network—somewhat analagous to an oscilloscope in electronics. This section lists some potential use cases.
+
+1. Checking if your model has vanishing / exploding gradients.
+2. Checking if inputs to a particular module are nicely distributed (if not, throw in a normalization layer).
+3. Catching bugs like using a `ReLU` nonlinearity as the final layer when module outputs could potentially be negative.
+4. For multiple submodules whose outputs are combined, checking if gradients are flowing more to one or the other.
+5. If a module takes multiple inputs, seeing which input is more important by the relative grad norm size.
+6. Ensuring that latent space / embedding distributions look healthy (e.g., VAE latents are approximately normal).
+7. Using `torchexplorer.attach` to see whether gradients are mainly flowing through skip connections or the main network path.
 
 ## User interface
 
