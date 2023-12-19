@@ -10,6 +10,10 @@ TorchExplorer
 API
 ---
 
+.. note::
+   For wandb training, make sure to call `torchexplorer.setup()` before `wandb.init()`.
+   This will configure subprocess open file limits to work around some wandb limitations.
+
 .. autofunction:: torchexplorer.setup
 
 .. autofunction:: torchexplorer.watch
@@ -19,10 +23,3 @@ API
 .. autoclass:: torchexplorer.LIGHTNING_EPOCHS
 
 .. autoclass:: torchexplorer.StructureWrapper
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
