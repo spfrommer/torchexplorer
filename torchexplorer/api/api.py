@@ -187,7 +187,7 @@ def watch(
 
 
 def attach(tensor: Tensor, parent: Module, name: str) -> Tensor:
-    """Monitor a particular tensor within a "forward" call.
+    """Monitor a particular tensor within a `forward` call.
 
     Example:
         Intended usage::
@@ -202,12 +202,12 @@ def attach(tensor: Tensor, parent: Module, name: str) -> Tensor:
         Note that the return value must be assigned in order for this to have any
         effect. The following will do nothing by itself::
 
-            torch.attach(y, self, name='y_monitor')
+            torch.attach(y, self, name='y_monitor') # WRONG!!!
 
     Args:
-        tensor (Tensor): The tensor to watch.
-        parent (Module): The Module whose `forward` method we are currently in. Usually
-            will be `self`
+        tensor (Tensor): The tensor to add to the graph.
+        parent (Module): The `Module` whose `forward` method we are currently in.
+            Usually will be `self`.
         name (str): The name of the resulting node in the interface.
 
     Returns:
