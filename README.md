@@ -36,26 +36,6 @@ torchexplorer.watch(model, backend='wandb') # Or 'standalone'
 # Training loop...
 ```
 
-TorchExplorer's interactive view of the model structure is also useful in its own right (without the histogram bells-and-whistles). Here's a self-contained example for how to get an interactive view of a ResNet18. Mousing over a particular node reveals input/output tensor shapes and Module parameters. Get a feel for what this looks like [with an interactive demo](https://api.wandb.ai/links/spfrom_team/8qqsxx9f).
-```python
-import torch
-import torchvision
-from torchexplorer import watch
-
-model = torchvision.models.resnet18(pretrained=False)
-dummy_X = torch.randn(5, 3, 32, 32)
-
-# Only log input/output and parameter histograms, if you don't want even these set log=[].
-watch(model, log_freq=1, log=['io', 'params'], backend='standalone')
-
-# Do one forwards and backwards pass
-model(dummy_X).sum().backward()
-
-# Your model will be available at http://localhost:5000
-```
-
-For more usage examples, see `/tests` and `/examples`. 
-
 ### Install
 Installing requires one external `graphviz` dependency, which should be available on most package managers.
 
@@ -64,6 +44,51 @@ sudo apt-get install libgraphviz-dev graphviz
 pip install torchexplorer
 ```
 For Mac, `brew install graphviz` should suffice. If the `pygraphviz` wheel build fails because it can't find `Python.h`, you must install the python header files as described [here](https://stackoverflow.com/a/22077790/4864247).
+
+### Quick examples
+
+For more usage examples, see `/tests` and `/examples`.
+
+_Examine model structure._ TorchExplorer's interactive view of the model structure is also useful in its own right (without the histogram bells-and-whistles). Here's a self-contained example for how to get an interactive view of a ResNet18. Mousing over a particular node reveals input/output tensor shapes and Module parameters. Get a feel for what this looks like [with an interactive demo](https://api.wandb.ai/links/spfrom_team/8qqsxx9f).
+```python
+import torch
+import torchvision
+import torchexplorer
+
+model = torchvision.models.resnet18(pretrained=False)
+dummy_X = torch.randn(5, 3, 32, 32)
+
+# Only log input/output and parameter histograms, if you don't want even these set log=[].
+torchexplorer.watch(model, log_freq=1, log=['io', 'params'], backend='standalone')
+# Do one forwards and backwards pass
+model(dummy_X).sum().backward()
+# Your model will be available at http://localhost:5000
+```
+
+_Visualize intermediate tensors._ TorchExplorer automatically captures any Module inputs/outputs. Using [torchexplorer.attach](https://spfrommer.github.io/torchexplorer/#torchexplorer.attach), you can also log any intermediate tensors to the interface.
+
+```python
+import torch
+from torch import nn
+import torchexplorer
+
+class AttachModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(10, 10)
+        self.fc2 = nn.Linear(10, 10)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = torchexplorer.attach(x, self, 'intermediate')
+        return self.fc2(x)
+
+model = AttachModule()
+dummy_X = torch.randn(5, 10)
+torchexplorer.watch(model, log_freq=1, backend='standalone')
+model(dummy_X).sum().backward()
+# Your model will be available at http://localhost:5000
+```
 
 ## User interface
 
@@ -114,65 +139,7 @@ _Parameter gradient histograms._ After the `backward` call is completed, each pa
 
 ## API
 
-> [!NOTE]
-> For wandb training, make sure to call `torchexplorer.setup()` before `wandb.init()`. This will configure subprocess open file limits to work around some wandb limitations.
-
-Then the main api surface is just one function call, inspired by wandb's [watch](https://docs.wandb.ai/ref/python/watch).
-
-```python
-def watch(
-    module: nn.Module,
-    log: list[str] = ['io', 'io_grad', 'params', 'params_grad'],
-    log_freq: int = 500,
-    ignore_io_grad_classes: list[type] = [],
-    disable_inplace: bool = False,
-    bins: int = 20,
-    sample_n: Optional[int] = 100,
-    reject_outlier_proportion: float = 0.1,
-    time_log: tuple[str, Callable] = ('step', lambda module, step: step),
-    delay_log_multi_backward: bool = False,
-    backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
-    standalone_dir: str = './torchexplorer_standalone',
-    standalone_port: int = 5000,
-    verbose: bool = True,
-) -> StructureWrapper:
-"""Watch a module and log its structure and histograms to a backend.
-
-Args:
-    module (nn.Module): The module to watch.
-    log (list[str]): What to log. Can be a subset of
-        ['io', 'io_grad', 'params', 'params_grad'].
-    log_freq (int): How many backwards passes to wait between logging.
-    ignore_io_grad_classes (list[type]): A list of classes to ignore when logging
-        io_grad. This is useful for ignoring classes which do inplace operations,
-        which will throw an error.
-    disable_inplace (bool): disables the 'inplace' attribute for all activations in
-        the module.
-    bins (int): The number of bins to use for histograms.
-    sample_n (Optional[int]): The number of tensor elements to randomly sample for
-        histograms. Passing "None" will sample all elements.
-    reject_outlier_proportion (float): The proportion of outliners to reject when
-        computing histograms, based on distance to the median. 0.0 means reject
-        nothing, 1.0 rejects everything. Helps chart stay in a reasonable range.
-    time_log: ([tuple[str, Callable]): A tuple of (time_unit, Callable) to use for
-        logging. The allable should take in the module and step and return a value
-        to log. The time_unit string is just the axis label on the histogram graph.
-        If "module" is a pytorch lightning modules, torchexplorer.LIGHTNING_EPOCHS
-        should work to change the time axis to epochs.
-    delay_log_multi_backward (bool): Whether to delay logging until after all
-        backward hooks have been called. This is useful if the module argument is
-        invoked multiple times in one step before "backward()" is called on the
-        loss. 
-    backend (Literal['wandb', 'standalone', 'none']): The backend to log to. If
-        'wandb', there must be an active wandb run. Otherwise, a standalone web app
-        will be created in the standalone_dir.
-    standalone_dir (str): The directory to create the standalone web app in. Only
-        matters if the 'standalone' backend is selected.
-    standalone_port (int): The port to run the standalone server on. Only matters if
-        the 'standalone' backend is selected.
-    verbose (bool): Whether to print out standalone server start message.
-"""
-```
+API documentation is available [here](https://spfrommer.github.io/torchexplorer/). For wandb training, make sure to call `torchexplorer.setup()` before `wandb.init()`.
 
 ## Features and limitations
 
@@ -196,9 +163,12 @@ class TestModule(nn.Module):
 ```
 2. Nondifferentiable operations which break the autograd graph are permissible and should not cause a crash. However, the resulting module-level graph will be correspondingly disconnected.
 3. Multiple inputs and outputs will display correctly (i.e., "Input 0", "Input 1", ...)
-4. Invoking `.forward()` multiple times in a single step before backpropping is supported, but you must pass `delay_log_multibackward=True` (disabled by default). So the following pseudocode should work within a training loop:
+4. Invoking `.forward()` multiple times in a single step before backpropping is supported, but you must pass `delay_log_multibackward=True` (disabled by default). So the following pseudocode should work:
 ```python
 torchexplorer.watch(module, delay_log_multibackward=True)
+
+# ...
+# Within a training loop step:
 y_hat1 = module(X1)
 y_hat2 = module(X2)
 loss = (yhat1 - y1).abs().sum() + (yhat2 - y2).abs().sum()
