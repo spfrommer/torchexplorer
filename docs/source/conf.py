@@ -9,7 +9,7 @@
 project = 'TorchExplorer'
 copyright = '2023, Samuel Pfrommer'
 author = 'Samuel Pfrommer'
-release = '1.0.0'
+release = '1.1.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
