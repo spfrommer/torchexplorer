@@ -39,19 +39,19 @@ class TestModule(nn.Module):
         return x
 
 def main():
-    model = TestModule()
-    time_log = ('epoch', lambda module, step: step // 2)
-    structure_wrapper = api.watch(model, log_freq=1, backend='none', time_log=time_log)
-    X, y = torch.randn(5, 10), torch.randn(5, 10)
+    # model = TestModule()
+    # time_log = ('epoch', lambda module, step: step // 2)
+    # structure_wrapper = api.watch(model, log_freq=1, backend='none', time_log=time_log)
+    # X, y = torch.randn(5, 10), torch.randn(5, 10)
 
-    # import torchvision
-    # model = torchvision.models.resnet18()
-    # inplace_classes = [torchvision.models.resnet.BasicBlock]
-    # structure_wrapper = api.watch(
-    #     model, log_freq=1, backend='none',
-    #     ignore_io_grad_classes=inplace_classes, disable_inplace=True
-    # )
-    # X, y = torch.randn(5, 3, 32, 32), torch.randn(5, 1000)
+    import torchvision
+    model = torchvision.models.resnet18()
+    inplace_classes = [torchvision.models.resnet.BasicBlock]
+    structure_wrapper = api.watch(
+        model, log_freq=1, backend='none',
+        ignore_io_grad_classes=inplace_classes, disable_inplace=True
+    )
+    X, y = torch.randn(5, 3, 32, 32), torch.randn(5, 1000)
 
 
     # encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)

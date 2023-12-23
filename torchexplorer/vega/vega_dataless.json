@@ -541,7 +541,22 @@
         }
       ]
     },
-    { "name": "panel_separator_data",
+    { "name": "singlerow_data",
+      "values": [],
+      "transform": [
+        {
+          "type": "sequence",
+          "start": 0,
+          "stop": 1
+        },
+        {
+          "type": "project",
+          "fields": [],
+          "as": []
+        }
+      ]
+    },
+    { "name": "singlerow_data_postload",
       "source": "nodes",
       "transform": [
         {
@@ -552,7 +567,38 @@
           "type": "project",
           "fields": [],
           "as": []
+        }
+      ]
+    },
+    { "name": "singlerow_data_postloadfail",
+      "source": "singlerow_data",
+      "transform": [
+        {
+          "type": "formula",
+          "as": "dummy",
+          "expr": "0"
         },
+        {
+          "type": "lookup",
+          "from": "nodes",
+          "key": "id",
+          "fields": ["dummy"],
+          "as": ["dummy_key"]
+        },
+        {
+          "type": "filter",
+          "expr": "datum.dummy_key == null"
+        },
+        {
+          "type": "project",
+          "fields": [],
+          "as": []
+        }
+      ]
+    },
+    { "name": "panel_separator_data",
+      "source": "singlerow_data_postload",
+      "transform": [
         {
           "type": "formula",
           "as": "panel_sequence",
@@ -728,14 +774,14 @@
     { "name": "mouse_down_position",
       "value": null,
       "on": [
-        {"events": "@explorer_background:mousedown", "update": "xy()"}
+        {"events": "@explorer_background_rect:mousedown", "update": "xy()"}
       ]
     },
     { "name": "explorer_cum_delta",
       "value": [0, 0],
       "on": [
         {
-          "events": "@explorer_background:mousedown",
+          "events": "@explorer_background_rect:mousedown",
           "update": "[explorer_cum_delta[0]+explorer_current_delta[0], explorer_cum_delta[1]+explorer_current_delta[1]]"
         },
         {
@@ -752,11 +798,11 @@
       "value": [0, 0],
       "on": [
         {
-          "events": "[@explorer_background:mousedown, window:mouseup] > window:mousemove",
+          "events": "[@explorer_background_rect:mousedown, window:mouseup] > window:mousemove",
           "update": "mouse_down_position ? [mouse_down_position[0]-x(), y()-mouse_down_position[1]] : [0,0]"
         },
         {
-          "events": "@explorer_background:mousedown",
+          "events": "@explorer_background_rect:mousedown",
           "update": "[0,0]"
         },
         {
@@ -796,10 +842,11 @@
   ],
 
   "marks": [
-    { "name": "explorer_background",
+    { "name": "explorer_background_rect",
       "//": "An empty background so we can capture drag events on the explorer background.",
       "type": "rect",
-      "zindex": 0,
+      "from": {"data": "singlerow_data_postload"},
+      "zindex": 10,
       "encode": {
         "enter": {
         },
@@ -815,7 +862,7 @@
     },
     { "name": "node_rects",
       "type": "rect",
-      "zindex": 1,
+      "zindex": 11,
       "from": {"data": "active_nodes"},
       "encode": {
         "enter": {
@@ -842,7 +889,7 @@
     },
     { "name": "node_texts",
       "type": "text",
-      "zindex": 1,
+      "zindex": 11,
       "from": {"data": "active_nodes"},
       "encode": {
         "enter": {
@@ -862,7 +909,7 @@
     },
     { "name": "tooltip_rect",
       "type": "rect",
-      "zindex": 4,
+      "zindex": 14,
       "from": {"data": "active_tooltip"},
       "encode": {
         "enter": {
@@ -883,7 +930,7 @@
     },
     { "name": "tooltip_backdrop_rect",
       "type": "rect",
-      "zindex": 3,
+      "zindex": 13,
       "from": {"data": "active_tooltip"},
       "encode": {
         "enter": {
@@ -901,7 +948,7 @@
     },
     { "name": "tooltip_title_text",
       "type": "text",
-      "zindex": 5,
+      "zindex": 15,
       "from": {"data": "active_tooltip"},
       "encode": {
         "enter": {
@@ -922,7 +969,7 @@
     },
     { "name": "tooltip_keys_text",
       "type": "text",
-      "zindex": 5,
+      "zindex": 15,
       "from": {"data": "active_tooltip"},
       "encode": {
         "enter": {
@@ -943,7 +990,7 @@
     },
     { "name": "tooltip_values_text",
       "type": "text",
-      "zindex": 5,
+      "zindex": 15,
       "from": {"data": "active_tooltip"},
       "encode": {
         "enter": {
@@ -964,7 +1011,7 @@
     { "name": "bookmark_group",
       "//": "Need to wrap bookmarks in groups so that we can have multiple colors.",
       "type": "group",
-      "zindex": 3,
+      "zindex": 13,
       "from": {
         "facet": {
           "data": "active_node_bookmarks",
@@ -975,7 +1022,7 @@
       "marks": [
         { "name": "bookmark_lines",
           "type": "line",
-          "zindex": 3,
+          "zindex": 13,
           "from": {"data": "bookmark_facet"},
           "encode": {
             "update": {
@@ -992,7 +1039,7 @@
     },
     { "name": "path_lines",
       "type": "line",
-      "zindex": 1,
+      "zindex": 11,
       "from": {"data": "active_path_edges"},
       "encode": {
         "enter": {
@@ -1009,7 +1056,7 @@
     },
     { "name": "arrowhead_lines",
       "type": "line",
-      "zindex": 1,
+      "zindex": 11,
       "from": {"data": "active_arrowhead_edges"},
       "encode": {
         "enter": {
@@ -1027,7 +1074,7 @@
     },
     { "name": "parents_navigator_texts",
       "type": "text",
-      "zindex": 3,
+      "zindex": 13,
       "from": {"data": "active_parents"},
       "encode": {
         "enter": {
@@ -1052,7 +1099,7 @@
     { "name": "parents_navigator_background",
       "type": "rect",
       "from": {"data": "parents_navigator_texts"},
-      "zindex": 2,
+      "zindex": 12,
       "encode": {
         "enter": {
           "cornerRadius": {"value": 3},
@@ -1100,7 +1147,8 @@
     { "name": "panel_background",
       "//": "An empty background on the panels that covers the explorer.",
       "type": "rect",
-      "zindex": 10,
+      "from": {"data": "singlerow_data_postload"},
+      "zindex": 20,
       "encode": {
         "update": {
           "fill": {"signal": "if(dragged_node_id==-1, neutral_color, off_neutral_color)"},
@@ -1114,7 +1162,7 @@
     { "name": "panel_groups",
       "//": "Renders all visible panels, one per visualized module.",
       "type": "group",
-      "zindex": 11,
+      "zindex": 21,
       "from": {
         "facet": {
           "data": "visualized_histograms",
@@ -1548,7 +1596,7 @@
             },
             { "name": "subpanel_display_name_texts",
               "type": "text",
-              "zindex": 2,
+              "zindex": 12,
               "from": {"data": "subpanel_display_name_data"},
               "encode": {
                 "enter": {
@@ -1567,7 +1615,7 @@
             },
             { "name": "subpanel_display_name_background",
               "type": "rect",
-              "zindex": 1,
+              "zindex": 11,
               "from": {"data": "subpanel_display_name_texts"},
               "encode": {
                 "update": {
@@ -1659,7 +1707,7 @@
     },
     { "name": "dragged_node_rect",
       "type": "rect",
-      "zindex": 20,
+      "zindex": 30,
       "from": {"data": "dragged_node_data"},
       "encode": {
         "enter": {
@@ -1684,7 +1732,7 @@
     },
     { "name": "dragged_node_text",
       "type": "text",
-      "zindex": 21,
+      "zindex": 31,
       "from": {"data": "dragged_node_data"},
       "encode": {
         "enter": {
@@ -1705,7 +1753,7 @@
     { "name": "separator_rules",
       "type": "rule",
       "from": {"data": "panel_separator_data"},
-      "zindex": 11,
+      "zindex": 21,
       "encode": {
         "enter": {
           "stroke": {"value": "black"},
@@ -1754,6 +1802,7 @@
     },
     { "name": "help_button_text",
       "type": "text",
+      "from": {"data": "singlerow_data_postload"},
       "encode": {
         "update": {
           "x": {"signal": "explorer_width - 10"},
@@ -1765,6 +1814,61 @@
           "text": {"value": "?"},
           "tooltip": {"value": "Shift-click for help"},
           "href": {"value": "https://github.com/spfrommer/torchexplorer#user-interface"}
+        }
+      }
+    },
+    { "name": "loading_text",
+      "type": "text",
+      "from": {"data": "singlerow_data"},
+      "zindex": 0,
+      "encode": {
+        "enter": {
+          "fill": {"value": "#999"},
+          "text": {"value": ["Data received, loading..."]}
+        },
+        "update": {
+          "x": {"signal": "width / 2"},
+          "y": {"signal": "height / 2 - 20"},
+          "align": {"value": "center"},
+          "baseline": {"value": "middle"},
+          "font": {"signal": "global_font"},
+          "fontSize": {"value": 18}
+        }
+      }
+    },
+    { "name": "loading_failed_background_rect",
+      "//": "A panel to cover up the loading text.",
+      "type": "rect",
+      "from": {"data": "singlerow_data_postloadfail"},
+      "zindex": 1,
+      "encode": {
+        "enter": {
+        },
+        "update": {
+          "fill": {"signal": "neutral_color"},
+          "x": {"signal": "0"},
+          "x2": {"signal": "width"},
+          "y": {"signal": "0"},
+          "y2": {"signal": "height"}
+        }
+      }
+    },
+    { "name": "loading_failed_text",
+      "type": "text",
+      "from": {"data": "singlerow_data_postloadfail"},
+      "zindex": 2,
+      "encode": {
+        "enter": {
+          "fill": {"value": "#999"},
+          "text": {"value": ["Waiting on data..."]}
+        },
+        "update": {
+          "x": {"signal": "width / 2"},
+          "y": {"signal": "height / 2 - 20"},
+          "align": {"value": "center"},
+          "baseline": {"value": "middle"},
+          "font": {"signal": "global_font"},
+          "fontSize": {"value": 18}
         }
       }
     }
