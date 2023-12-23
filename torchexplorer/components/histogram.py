@@ -50,8 +50,9 @@ class IncrementalHistogram:
 
         t_min, t_max = tensor.min(), tensor.max()
         if self.min is None:
-            self.min = (t_min + 1.5 * (t_min - t_max - 0.0001)).item()
-            self.max = (t_min + 1.5 * (t_max - t_min + 0.0001)).item()
+            self.min = (t_min + 1.5 * (t_min - t_max)).item() - 1e-4
+            self.max = (t_min + 1.5 * (t_max - t_min)).item() + 1e-4
+            assert self.min < self.max - 1e-4
 
         while self.min >= t_min:
             self._rebin('min')
