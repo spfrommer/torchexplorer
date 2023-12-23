@@ -1803,6 +1803,7 @@
     { "name": "help_button_text",
       "type": "text",
       "from": {"data": "singlerow_data_postload"},
+      "zindex": 10,
       "encode": {
         "update": {
           "x": {"signal": "explorer_width - 10"},
