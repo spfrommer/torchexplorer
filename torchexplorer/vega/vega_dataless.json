@@ -1770,7 +1770,7 @@
     { "name": "workspace_multirun_rect",
       "type": "rect",
       "from": {"data": "workspace_multirun_detector"},
-      "zindex": 20,
+      "zindex": 30,
       "encode": {
         "update": {
           "fill": {"signal": "neutral_color"},
@@ -1784,7 +1784,7 @@
     { "name": "workspace_multirun_text",
       "type": "text",
       "from": {"data": "workspace_multirun_detector"},
-      "zindex": 21,
+      "zindex": 31,
       "encode": {
         "enter": {
           "fill": {"value": "#999"},
