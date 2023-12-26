@@ -169,10 +169,7 @@ def _serialize_node(layout: NodeLayout) -> dict:
         'output_histograms': output_hists_str,
         'param_histograms': param_hists_str,
 
-        'bottom_left_corner_x': layout.bottom_left_corner[0],
-        'bottom_left_corner_y': layout.bottom_left_corner[1],
-        'top_right_corner_x': layout.top_right_corner[0],
-        'top_right_corner_y': layout.top_right_corner[1],
+        'corners': _serialize_list(layout.bottom_left_corner + layout.top_right_corner),
     }
 
     return new_object
@@ -202,8 +199,6 @@ def _serialize_edge(edge: EdgeLayout) -> dict:
     # Makes things easier in vega
     end_of_path = [[-10000.0, -10000.0]]
     return {
-        'downstream_input_index': edge.downstream_input_index,
-        'upstream_output_index': edge.upstream_output_index,
         'path_points': points_str(edge.path_points + end_of_path),
         'arrowhead_points': points_str(edge.arrowhead_points + end_of_path),
     }

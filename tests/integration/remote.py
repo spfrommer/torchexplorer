@@ -206,9 +206,6 @@ class MultiInputMultiOutputModule(nn.Module):
 
     def forward(self, x):
         y1 = self.fc1(x)
-        # TODO: The commented out approach gives correct answers...
-        # y_times = y1 * 5
-        # y2, y3 = self.submodule(y1, y_times)
         y2, y3 = self.submodule(y1, y1 * 5)
         y4 = self.fc2(y2) + self.fc2(y3)
         return y4

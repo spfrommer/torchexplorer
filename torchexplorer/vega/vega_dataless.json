@@ -72,8 +72,38 @@
         },
         {
           "type": "project",
-          "fields": ["nodes:id", "nodes:parent_stack", "nodes:active_on_id", "nodes:display_name", "nodes:tooltip", "nodes:input_histograms", "nodes:output_histograms", "nodes:param_histograms", "nodes:bottom_left_corner_x", "nodes:bottom_left_corner_y", "nodes:top_right_corner_x", "nodes:top_right_corner_y", "nodes:child_ids"],
+          "fields": ["nodes:id", "nodes:parent_stack", "nodes:active_on_id", "nodes:display_name", "nodes:tooltip", "nodes:input_histograms", "nodes:output_histograms", "nodes:param_histograms", "nodes:corners", "nodes:child_ids"],
+          "as": ["id", "parent_stack", "active_on_id", "display_name", "tooltip", "input_histograms", "output_histograms", "param_histograms", "corners", "child_ids"]
+        },
+        {
+          "type": "formula",
+          "as": "corners",
+          "expr": "split(datum.corners, '::')"
+        },
+        {
+          "type": "project",
+          "fields": ["id", "parent_stack", "active_on_id", "display_name", "tooltip", "input_histograms", "output_histograms", "param_histograms", "corners[0]", "corners[1]", "corners[2]", "corners[3]", "child_ids"],
           "as": ["id", "parent_stack", "active_on_id", "display_name", "tooltip", "input_histograms", "output_histograms", "param_histograms", "bottom_left_corner_x", "bottom_left_corner_y", "top_right_corner_x", "top_right_corner_y", "child_ids"]
+        },
+        {
+          "type": "formula",
+          "as": "bottom_left_corner_x",
+          "expr": "parseFloat(datum.bottom_left_corner_x)"
+        },
+        {
+          "type": "formula",
+          "as": "bottom_left_corner_y",
+          "expr": "parseFloat(datum.bottom_left_corner_y)"
+        },
+        {
+          "type": "formula",
+          "as": "top_right_corner_x",
+          "expr": "parseFloat(datum.top_right_corner_x)"
+        },
+        {
+          "type": "formula",
+          "as": "top_right_corner_y",
+          "expr": "parseFloat(datum.top_right_corner_y)"
         },
         {
           "type": "formula",
@@ -90,8 +120,8 @@
         },
         {
           "type": "project",
-          "fields": ["edges:active_on_id", "edges:downstream_input_index", "edges:upstream_output_index", "edges:path_points", "edges:arrowhead_points"],
-          "as": ["active_on_id", "downstream_input_index", "upstream_output_index", "path_points", "arrowhead_points"]
+          "fields": ["edges:active_on_id", "edges:path_points", "edges:arrowhead_points"],
+          "as": ["active_on_id", "path_points", "arrowhead_points"]
         },
         {
           "type": "fold",
