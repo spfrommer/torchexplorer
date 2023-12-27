@@ -1411,139 +1411,52 @@
                   "opacity": {"value": 1}
                 }
               },
-              "data": [
-                {
-                  "name": "histogram_facet_ids",
-                  "source": "facet3",
-                  "transform": [
-                    {
-                      "type": "identifier",
-                      "as": "id"
-                    }
-                  ]
-                },
-                { "name": "histogram_facet_paired",
-                  "source": "histogram_facet_ids",
-                  "transform": [
-                    {
-                      "type": "formula",
-                      "as": "next_id",
-                      "expr": "datum.id+1"
-                    },
-                    {
-                      "type": "lookup",
-                      "from": "histogram_facet_ids",
-                      "key": "id",
-                      "fields": ["next_id"],
-                      "values": ["bin_count", "y_index"],
-                      "as": ["next_bin_count", "next_y_index"],
-                      "default": null
-                    },
-                    {
-                      "type": "joinaggregate",
-                      "fields": ["bin_count"],
-                      "ops": ["max"],
-                      "as": ["max_bin_count"]
-                    },
-                    {
-                      "type": "formula",
-                      "as": "next_bin_count",
-                      "expr": "if(datum.next_y_index < datum.y_index, null, datum.next_bin_count)"
-                    },
-                    {
-                      "type": "formula",
-                      "as": "next_y_index",
-                      "expr": "if(datum.next_y_index < datum.y_index, null, datum.next_y_index)"
-                    },
-                    {
-                      "type": "formula",
-                      "as": "next_y_index",
-                      "expr": "if(datum.next_y_index == null, datum.y_index+0.5, datum.next_y_index)"
-                    },
-                    {
-                      "type": "formula",
-                      "as": "next_bin_count",
-                      "expr": "if(datum.next_bin_count == null, datum.bin_count, datum.next_bin_count)"
-                    }
-                  ]
-                },
-                { "name": "column_start",
-                  "source": "histogram_facet_paired",
-                  "transform": [
-                    {
-                      "type": "filter",
-                      "expr": "datum.y_index == 0"
-                    },
-                    {
-                      "type": "formula",
-                      "as": "next_bin_count",
-                      "expr": "datum.bin_count"
-                    },
-                    {
-                      "type": "formula",
-                      "as": "next_y_index",
-                      "expr": "0"
-                    },
-                    {
-                      "type": "formula",
-                      "as": "y_index",
-                      "expr": "-0.5"
-                    }
-                  ]
-                },
-                { "name": "histogram_facet_render",
-                  "source": ["histogram_facet_paired", "column_start"],
-                  "transform": [
-                    {
-                      "type": "formula",
-                      "as": "next_x_index",
-                      "expr": "datum.x_index + 1"
-                    }
-                  ]
-                }
-              ],
               "scales": [
                 { "name": "histogram_xscale",
-                  "type": "linear",
-                  "domain": {"data": "histogram_facet_render", "fields": ["x_index", "next_x_index"]},
+                  "type": "band",
+                  "domain": {"data": "facet3", "field": "x_index"},
                   "range": {"signal": "[histogram_margin, histogram_inner_width + histogram_margin]"}
                 },
                 { "name": "histogram_yscale",
-                  "type": "linear",
-                  "domain": {"data": "histogram_facet_render", "fields": ["y_index", "next_y_index"]},
+                  "type": "band",
+                  "domain": {"data": "facet3", "field": "y_index"},
                   "range": {"signal": "[histogram_height, 0]"}
                 },
                 { "name": "histogram_color",
                   "type": "linear",
                   "range": {"scheme": {"signal": "panels_scheme[parent.panel_index]"}},
-                  "domain": [0, 1]
+                  "domain": {"data": "facet3", "field": "bin_count"},
+                  "zero": false,
+                  "nice": true
                 }
               ],        
               "marks": [
-                { "name": "histogram_interpolated_rects",
-                  "type": "group",
-                  "from": {
-                    "data": "histogram_facet_render"
-                  },
-                  "scales": [
-                    {
-                      "name": "color_inner",
-                      "type": "sequential",
-                      "range": {"signal": "[if(parent.next_bin_count > 0, scale('histogram_color', parent.next_bin_count / parent.max_bin_count), 'white'), if(parent.bin_count > 0, scale('histogram_color', parent.bin_count / parent.max_bin_count), 'white')]"}
+                { "name": "histogram_bin_rects",
+                  "type": "rect",
+                  "from": {"data": "facet3"},
+                  "encode": {
+                    "enter": {
+                      "x": {"scale": "histogram_xscale", "field": "x_index"},
+                      "y": {"scale": "histogram_yscale", "field": "y_index"},
+                      "width": {"scale": "histogram_xscale", "band": 1},
+                      "height": {"scale": "histogram_yscale", "band": 1},
+                      "opacity": {"value": 1}
+                    },
+                    "update": {
+                      "fill": {"signal": "if(datum.bin_count==0, neutral_color, scale('histogram_color', datum.bin_count))"},
+                      "tooltip": {"signal": "datum.time_type + ': ' + datum.time + ', count: ' + datum.bin_count"}
                     }
-                  ],
-                  "marks": [
+                  },
+                  "transform": [
                     {
-                      "type": "rect",
-                      "encode": {
-                        "enter": {
-                          "x": {"scale": "histogram_xscale", "signal": "parent.x_index+0.03"},
-                          "x2": {"scale": "histogram_xscale", "signal": "parent.next_x_index-0.03"},
-                          "y": {"scale": "histogram_yscale", "signal": "parent.y_index"},
-                          "y2": {"scale": "histogram_yscale", "signal": "parent.next_y_index"},
-                          "fill": {"signal": "gradient('color_inner', [0, 0], [0, 1])"}
-                        }
-                      }
+                      "type": "formula",
+                      "as": "width",
+                      "expr": "datum.width+1"
+                    },
+                    {
+                      "type": "formula",
+                      "as": "height",
+                      "expr": "datum.height+1"
                     }
                   ]
                 }
