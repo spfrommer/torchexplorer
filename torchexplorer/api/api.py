@@ -123,16 +123,6 @@ def watch(
     elif backend == 'none':
         backend_handler = DummyBackend()
 
-    hook.hook(
-        module,
-        should_log_callable,
-        log_io='io' in log,
-        log_io_grad='io_grad' in log,
-        ignore_io_grad_classes=ignore_io_grad_classes,
-        hist_params=hist_params
-    )
-
-
     layout_cache = None
     backward_last_called = False
     def handle_step(module):
@@ -151,15 +141,16 @@ def watch(
 
         step_counter += 1
 
-    def post_forward_hook(module, __, ___):
-        nonlocal wrapper, backward_last_called
-        if module.training and (wrapper.structure is None):
-            wrapper.structure = structure.extract_structure(module)
-        
+    def pre_forward_hook(module, _):
+        nonlocal backward_last_called
         if delay_log_multi_backward and backward_last_called:
             handle_step(module)
         backward_last_called = False
 
+    def post_forward_hook(module, _, __):
+        nonlocal wrapper
+        if module.training and (wrapper.structure is None):
+            wrapper.structure = structure.extract_structure(module)
 
     def post_backward_hook(_, __, ___):
         # This hook is called after we've backprop'd and called all the other hooks
@@ -178,6 +169,16 @@ def watch(
             handle_step(module)
         backward_last_called = True
 
+    hook.hook(
+        module,
+        should_log_callable,
+        separate_backward_metadata_clear=delay_log_multi_backward,
+        log_io='io' in log,
+        log_io_grad='io_grad' in log,
+        ignore_io_grad_classes=ignore_io_grad_classes,
+        hist_params=hist_params
+    )
+    module.register_forward_pre_hook(pre_forward_hook)
     module.register_forward_hook(post_forward_hook)
     module.register_full_backward_hook(post_backward_hook)
 
