@@ -1,3 +1,4 @@
+
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
   "description": "A neural network visualizer.",
@@ -1450,8 +1451,13 @@
                   "transform": [
                     {
                       "type": "formula",
+                      "as": "x",
+                      "expr": "datum.x+1"
+                    },
+                    {
+                      "type": "formula",
                       "as": "width",
-                      "expr": "datum.width+1"
+                      "expr": "datum.width-2"
                     },
                     {
                       "type": "formula",
@@ -1556,7 +1562,8 @@
                 "enter": {
                   "stroke": {"value": "#000"},
                   "strokeWidth": {"value": 2.5},
-                  "strokeDash": {"value": [8,2]}
+                  "strokeDash": {"value": [7,4]},
+                  "strokeOpacity": {"value": 1.0}
                 },
                 "update": {
                   "x": {"signal": "datum.histogram_x + histogram_margin + histogram_inner_width"},
