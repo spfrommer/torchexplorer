@@ -39,11 +39,26 @@ torchexplorer.watch(model, backend='wandb') # Or 'standalone'
 ### Install
 Installing requires one external `graphviz` dependency, which should be available on most package managers.
 
+_Linux_.
 ```bash
 sudo apt-get install libgraphviz-dev graphviz
 pip install torchexplorer
 ```
-For Mac, `brew install graphviz` should suffice. If the `pygraphviz` wheel build fails because it can't find `Python.h`, you must install the python header files as described [here](https://stackoverflow.com/a/22077790/4864247).
+If the `pygraphviz` wheel build fails because it can't find `Python.h`, you must install the python header files as described [here](https://stackoverflow.com/a/22077790/4864247).
+
+_Mac_.
+```bash
+brew install graphviz
+pip install torchexplorer
+```
+If there's an error regarding `#include "graphviz/cgraph.h"`, [the following](https://github.com/pygraphviz/pygraphviz/issues/11#issuecomment-1038479834) worked for me on Apple silicon:
+```bash
+python -m pip install \
+    --global-option=build_ext \
+    --global-option="-I$(brew --prefix graphviz)/include/" \
+    --global-option="-L$(brew --prefix graphviz)/lib/" \
+    pygraphviz
+```
 
 ### Usage
 

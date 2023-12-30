@@ -48,7 +48,7 @@ def main():
     model = torchvision.models.resnet18()
     inplace_classes = [torchvision.models.resnet.BasicBlock]
     structure_wrapper = api.watch(
-        model, log_freq=1, backend='none',
+        model, log_freq=1, backend='none', bins=20, sample_n=500,
         ignore_io_grad_classes=inplace_classes, disable_inplace=True
     )
     X, y = torch.randn(5, 3, 32, 32), torch.randn(5, 1000)
@@ -65,7 +65,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-2)
     loss_fn = torch.nn.MSELoss()
 
-    for step in range(2):
+    for step in range(10):
         y_hat = model(X)
         loss = loss_fn(y_hat, y)
         loss.backward()
