@@ -56,7 +56,7 @@ def watch(
         delay_log_multi_backward: bool = False,
         backend: Literal['wandb', 'standalone', 'none'] = 'wandb',
         standalone_dir: str = './torchexplorer_standalone',
-        standalone_port: int = 5000,
+        standalone_port: int = 8080,
         verbose: bool = True,
     ) -> StructureWrapper:
     """Watch a module and log its structure and histograms to a backend.

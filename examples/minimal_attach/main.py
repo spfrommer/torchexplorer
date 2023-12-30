@@ -19,4 +19,4 @@ dummy_X = torch.randn(5, 10)
 torchexplorer.watch(model, log_freq=1, backend='standalone')
 model(dummy_X).sum().backward()
 
-# Your model will be available at http://localhost:5000
+# Your model will be available at http://localhost:8080
