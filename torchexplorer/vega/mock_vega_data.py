@@ -48,7 +48,7 @@ def main():
     model = torchvision.models.resnet18()
     inplace_classes = [torchvision.models.resnet.BasicBlock]
     structure_wrapper = api.watch(
-        model, log_freq=1, backend='none', bins=50, sample_n=500,
+        model, log_freq=1, backend='none', bins=20, sample_n=500,
         ignore_io_grad_classes=inplace_classes, disable_inplace=True
     )
     X, y = torch.randn(5, 3, 32, 32), torch.randn(5, 1000)
