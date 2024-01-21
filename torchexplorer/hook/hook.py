@@ -191,6 +191,7 @@ def _add_size_record_hooks(module: Module, should_log_callable: Callable):
                 assert stored_shape is not None
                 if len(shape) != len(stored_shape):
                     tensor_trackers[i].size = None
+                    continue
                 
                 # TODO: with graphviz caching, this actually doesn't need to run
                 # since only the first pass sizes are stored.
@@ -336,6 +337,8 @@ def _get_tensor_gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn],
     return tuple(process_tensor(tensor) for tensor in utils.iter_not_none(tensors))
 
 def _get_next_gradfns(tensors: tuple[OTensor, ...]) -> tuple[Optional[GradFn], ...]:
+    if len(tensors) == 0:
+        return tuple()
     # Hacky workaround, couldn't figure out import
     # Check if all gradfns are the same 'BackwardHookFunctionBackward'
     backhook_class = 'BackwardHookFunctionBackward'

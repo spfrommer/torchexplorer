@@ -206,8 +206,11 @@ def _translate_inner_layouts(layout: NodeLayout) -> None:
         if is_input_node(l.display_name):
             input_centers.append(_center(l))
 
-    center = np.mean(np.array(input_centers), axis=0)
-    trans = utils.list_add(target_input_pos, [-center[0], -center[1]])
+    if len(input_centers) > 0:
+        center = np.mean(np.array(input_centers), axis=0)
+        trans = utils.list_add(target_input_pos, [-center[0], -center[1]])
+    else:
+        trans = target_input_pos
 
     def apply_translation(l: Union[NodeLayout, TooltipLayout]):
         l.bottom_left_corner = utils.list_add(l.bottom_left_corner, trans)
