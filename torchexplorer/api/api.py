@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from torch import Tensor, nn
+import torch
 from torch.nn import Module
 import wandb
 
@@ -113,7 +114,11 @@ def watch(
     hist_params = HistogramParams(bins, sample_n, reject_outlier_proportion, time_name)
 
     step_counter = 0
-    should_log_callable = lambda: (step_counter % log_freq == 0) and module.training
+    should_log_callable = (
+        lambda: (step_counter % log_freq == 0) and
+        module.training and
+        torch.is_grad_enabled()
+    )
 
     backend_handler: Backend
     if backend == 'wandb':
@@ -149,7 +154,7 @@ def watch(
 
     def post_forward_hook(module, _, __):
         nonlocal wrapper
-        if module.training and (wrapper.structure is None):
+        if module.training and torch.is_grad_enabled() and (wrapper.structure is None):
             wrapper.structure = structure.extract_structure(module)
 
     def post_backward_hook(_, __, ___):
