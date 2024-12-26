@@ -230,8 +230,9 @@ else:
 ```
 3. **Inplace operations are not supported** and should be corrected or filtered (see "Common errors" below).
 4. Keyword tensor arguments to the `forward` method are not supported. Only positional arguments will be tracked. Behavior for keyword tensor arguments is untested as of now.
-5. The tool isn't usable in the "Workspace" section of wandb when multiple runs are selected. To inspect a model, you must first open the specific run that you want in wandb. 
-6. Stopping and resumption of training runs is untested.
+5. Modules consuming in a list of tensors (e.g., `def forward(self, xs: list[Tensor])`) is not supported.
+6. The tool isn't usable in the "Workspace" section of wandb when multiple runs are selected. To inspect a model, you must first open the specific run that you want in wandb. 
+7. Stopping and resumption of training runs is untested.
 
 ### Other notes
 
