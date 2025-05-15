@@ -71,6 +71,8 @@ import torchvision
 import torchexplorer
 
 model = torchvision.models.resnet18(pretrained=False)
+# Histograms won't populate if model isn't in training mode
+model.train()
 dummy_X = torch.randn(5, 3, 32, 32)
 
 # Only log input/output and parameter histograms, if you don't want these set log=[].
