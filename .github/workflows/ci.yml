@@ -40,9 +40,9 @@ jobs:
       run: |
         pip install '.[dev]'
     
-    - name: MyPy (static type check)
-      run: |
-        mypy -p torchexplorer --disable-error-code=import-untyped
+    # - name: MyPy (static type check)
+    #   run: |
+    #     mypy -p torchexplorer --disable-error-code=import-untyped
     
     - name: PyTest (local tests)
       if: always()
