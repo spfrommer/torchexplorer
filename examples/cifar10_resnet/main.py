@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import os, sys
+import os
+import sys
 import click
 
 import wandb
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 import torch
+from torchexplorer.utils import device_available
 from torch import Tensor
 from torch import nn
 import torchvision
@@ -29,7 +31,8 @@ wandb_init_params = {
 @click.command()
 @click.option('--backend', default='wandb')
 def main(backend):
-    model = TestModule()
+    do_log = backend == 'wandb'
+    model = TestModule(do_log=do_log)
 
     watch(
         model,
@@ -41,11 +44,12 @@ def main(backend):
     )
 
     data = CIFAR10DataModule(data_dir='/tmp/cifar10')
-    logger = _setup_logging()
+    logger = _setup_logging() if do_log else None
     trainer = _setup_trainer(logger)
     trainer.fit(model, data)
 
-    wandb.finish()
+    if do_log:
+        wandb.finish()
 
 
 def _setup_logging():
@@ -60,14 +64,15 @@ def _setup_trainer(logger):
     return L.Trainer(
         max_epochs=50,
         num_sanity_val_steps=10,
-        devices=1 if torch.cuda.is_available() else 0,
+        devices=1 if device_available() else 0,
         logger=logger,
     )
 
 
 class TestModule(L.LightningModule):
-    def __init__(self):
+    def __init__(self, do_log: bool):
         super().__init__()
+        self.do_log = do_log
         self.loss = nn.CrossEntropyLoss()
 
         self.train_outputs = []
@@ -122,12 +127,14 @@ class TestModule(L.LightningModule):
             'valid_acc': torch.stack([r['acc'] for r in self.valid_outputs]).mean()
         }
 
-        self.log('monitored', vars['valid_loss'])
+        if self.do_log:
+            self.log('monitored', vars['valid_loss'])
 
         # Prefix the metrics so that they are grouped appropriately in wandb
         vars = self._prefix_metrics(vars)
 
-        self.logger.experiment.log(vars)
+        if self.do_log:
+            self.logger.experiment.log(vars)
         self.train_outputs.clear()
         self.valid_outputs.clear()
 

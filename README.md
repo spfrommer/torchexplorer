@@ -49,9 +49,11 @@ If the `pygraphviz` wheel build fails because it can't find `Python.h`, you must
 _Mac_.
 ```bash
 brew install graphviz
+export CFLAGS="-I$(brew --prefix graphviz)/include"
+export LDFLAGS="-L$(brew --prefix graphviz)/lib"
 pip install torchexplorer
 ```
-If there's an error regarding `#include "graphviz/cgraph.h"`, [the following](https://github.com/pygraphviz/pygraphviz/issues/11#issuecomment-1038479834) worked for me on Apple silicon:
+The flag exports above address [an error](https://github.com/pygraphviz/pygraphviz/issues/11#issuecomment-1038479834) regarding `#include "graphviz/cgraph.h"`. The above might not work for older versions of pip--if so, the following might be necessary:
 ```bash
 python -m pip install \
     --global-option=build_ext \
@@ -59,6 +61,7 @@ python -m pip install \
     --global-option="-L$(brew --prefix graphviz)/lib/" \
     pygraphviz
 ```
+Followed by re-running `pip install torchexplorer`.
 
 ### Usage
 

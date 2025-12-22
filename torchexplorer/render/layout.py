@@ -1,7 +1,6 @@
 from __future__ import annotations
 import copy
 
-import html
 import json
 import string
 from typing import Optional, Union
@@ -258,7 +257,12 @@ def _get_graphviz_json(structure: ModuleInvocationStructure, format='json') -> d
 
     A = nx.nx_agraph.to_agraph(structure.inner_graph)
     A.graph_attr.update(splines='ortho', ratio=1)
-    A.node_attr.update(shape='box')
+    if utils.get_system() == "darwin":
+        # Increase the fontsize on macOS actually just makes the rectangles bigger,
+        # letting text fit better into the nodes.
+        A.node_attr.update(shape='box', fontsize=16)
+    else:
+        A.node_attr.update(shape='box')
     
     dot_source = A.string()
     p = Popen(['dot', f'-T{format}'], stdout=PIPE, stdin=PIPE, stderr=PIPE)

@@ -1,8 +1,6 @@
-from torchvision import transforms, datasets
-from typing import *
+from typing import List
 import torch
-import os
-from torch.utils.data import Dataset
+from torchexplorer.utils import get_device
 
 data_shape = {
     'mnist': (1, 28, 28),
@@ -44,8 +42,9 @@ class NormalizeLayer(torch.nn.Module):
         :param sds: the channel standard deviations
         """
         super(NormalizeLayer, self).__init__()
-        self.means = torch.tensor(means).cuda()
-        self.sds = torch.tensor(sds).cuda()
+        device = get_device()
+        self.means = torch.tensor(means).to(device)
+        self.sds = torch.tensor(sds).to(device)
 
     def forward(self, input: torch.tensor):
         (batch_size, num_channels, height, width) = input.shape

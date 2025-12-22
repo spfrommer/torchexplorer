@@ -13,6 +13,7 @@ from sklearn import datasets
 import click
 
 from torchexplorer import watch, LIGHTNING_EPOCHS
+from torchexplorer.utils import device_available
 
 
 wandb_init_params = {
@@ -24,15 +25,17 @@ wandb_init_params = {
 @click.command()
 @click.option('--backend', default='wandb')
 def main(backend):
-    model = TestModule()
+    do_log = backend == 'wandb'
+    model = TestModule(do_log=do_log)
     watch(model, log_freq=15, time_log=LIGHTNING_EPOCHS, backend=backend)
 
     data = IrisDataModule()
-    logger = _setup_logging()
+    logger = _setup_logging() if do_log else None
     trainer = _setup_trainer(logger)
     trainer.fit(model, data)
 
-    wandb.finish()
+    if do_log:
+        wandb.finish()
 
 
 def _setup_logging():
@@ -47,14 +50,15 @@ def _setup_trainer(logger):
     return L.Trainer(
         max_epochs=10,
         num_sanity_val_steps=0,
-        devices=1 if torch.cuda.is_available() else 0,
+        devices=1 if device_available() else 0,
         logger=logger,
     )
 
 
 class TestModule(L.LightningModule):
-    def __init__(self):
+    def __init__(self, do_log: bool):
         super().__init__()
+        self.do_log = do_log
         self.loss = nn.CrossEntropyLoss()
 
         self.train_outputs = []
@@ -107,12 +111,14 @@ class TestModule(L.LightningModule):
             'valid_loss': torch.stack([r['loss'] for r in self.valid_outputs]).mean() 
         }
 
-        self.log('monitored', vars['valid_loss'])
+        if self.do_log:
+            self.log('monitored', vars['valid_loss'])
 
         # Prefix the metrics so that they are grouped appropriately in wandb
         vars = self._prefix_metrics(vars)
 
-        self.logger.experiment.log(vars)
+        if self.do_log:
+            self.logger.experiment.log(vars)
         self.train_outputs.clear()
         self.valid_outputs.clear()
 
